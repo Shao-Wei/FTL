@@ -1,0 +1,16 @@
+keyinput_1	1
+keyinput_2	0
+keyinput_3	0
+keyinput_4	0
+keyinput_5	0
+keyinput_6	0
+keyinput_7	0
+keyinput_8	0
+keyinput_9	0
+keyinput_10	0
+keyinput_11	0
+keyinput_12	0
+keyinput_13	0
+keyinput_14	0
+keyinput_15	0
+keyinput_16	0
