@@ -292,7 +292,8 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nPi, int nKey, int nPo, char* cnfFile
         for (int i = 0; i < nPo; i++)
         {
             Aig_Obj_t *pAigObjOut1 = Aig_ManCo(pCnfOut1->pMan, i);
-            int var = pCnfOut1->pVarNums[Aig_ObjId(pAigObjOut1)];
+            Aig_Obj_t *pAigObjFanin1 = Aig_ObjFanin0(pAigObjOut1);
+            int var = pCnfOut1->pVarNums[Aig_ObjId(pAigObjFanin1)];
             // Abc_Print(1, "var of po %d: %d\n", i, var);
             Vec_IntPush(pOut1Po, var);
         }
@@ -329,7 +330,8 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nPi, int nKey, int nPo, char* cnfFile
         for (int i = 0; i < nPo; i++)
         {
             Aig_Obj_t *pAigObjOut2 = Aig_ManCo(pCnfOut2->pMan, i);
-            int var = pCnfOut2->pVarNums[Aig_ObjId(pAigObjOut2)];
+            Aig_Obj_t *pAigObjFanin2 = Aig_ObjFanin0(pAigObjOut2);
+            int var = pCnfOut2->pVarNums[Aig_ObjId(pAigObjFanin2)];
             // Abc_Print(1, "var of po %d: %d\n", i, var);
             Vec_IntPush(pOut2Po, var);
         }
