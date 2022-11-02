@@ -13,10 +13,11 @@ static Abc_Ntk_t * DummyFunction( Abc_Ntk_t * pNtk )
     return NULL;
 }
 
-static int Sample_MC_C432_Command( Abc_Frame_t_ * pAbc, int argc, char ** argv )
+static int Sample_MC_Command( Abc_Frame_t_ * pAbc, int argc, char ** argv )
 {
     int c            = 0;
     int fVerbose     = 0;
+    int fMiter       = 0;
     int nKey         = 5;
 
     char *blifFileName;
@@ -25,10 +26,13 @@ static int Sample_MC_C432_Command( Abc_Frame_t_ * pAbc, int argc, char ** argv )
     Abc_Ntk_t* pNtk;
         
     Extra_UtilGetoptReset();
-    while ( ( c = Extra_UtilGetopt( argc, argv, "kvh" ) ) != EOF )
+    while ( ( c = Extra_UtilGetopt( argc, argv, "mkvh" ) ) != EOF )
     {
         switch ( c )
         {            
+            case 'm':
+                fMiter ^= 1;
+                break;
             case 'k':
                 nKey = atoi(argv[globalUtilOptind]);
                 globalUtilOptind++;
@@ -53,7 +57,13 @@ static int Sample_MC_C432_Command( Abc_Frame_t_ * pAbc, int argc, char ** argv )
     }
     pNtk = Abc_FrameReadNtk(pAbc);
 
-    Sample_MC(pNtk, nKey);
+    if(fMiter) {
+        Sample_MC_Miter(pNtk, nKey);
+    }
+    else {
+        Sample_MC(pNtk, nKey);
+    }
+    
 
     return 0;
     
@@ -70,7 +80,7 @@ usage:
 // called during ABC startup
 static void init(Abc_Frame_t* pAbc)
 { 
-    Cmd_CommandAdd( pAbc, "FTL", "sampleMC", Sample_MC_C432_Command, 1);
+    Cmd_CommandAdd( pAbc, "FTL", "sampleMC", Sample_MC_Command, 1);
 }
 
 // called during ABC termination

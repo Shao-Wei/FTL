@@ -1,214 +1,169 @@
 #include "ER.h"
 #include "sat/bsat/satSolver.h"
 #include "sat/cnf/cnf.h"
-#include "base/io/ioAbc.h" // Io_ReadBlif
 #include <math.h>
 #include <vector>
 #include <stdlib.h>        // rand()
 
 /////////////////////////////////////////////////////////
-// Aux functions
+
+////////////////////////////////////////////////////////////////////////
+///                        DECLARATIONS                              ///
+////////////////////////////////////////////////////////////////////////
+void insertKey(Abc_Ntk_t* pNtk, int nKey, int seed, int& correctKey);
+
+void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nPi, int nKey, int nPo, char* cnfFileName);
+void AddKeyInfo2CNF(char* cnfFileName, int correctKey, int wrongKey, int nKey);
+
+//// Aux ///////////////////////////////////////////////////////////////
 /*== base/abci/abcDar.c ==*/
 extern "C" { Aig_Man_t *Abc_NtkToDar(Abc_Ntk_t *pNtk, int fExors, int fRegisters); }
+// extern "C" {Abc_Ntk_t * Abc_NtkMulti( Abc_Ntk_t * pNtk, int nThresh, int nFaninMax, int fCnf, int fMulti, int fSimple, int fFactor ); }
 
-void write_clause_to_file(FILE* ff, int& nClause, lit* begin, lit* end)
-{
-    if(ff == NULL)
-        return;
+char * int2bitstring(int value, int length);
 
-    lit* i;
-    nClause++;
-    for(i=begin; i<end; i++)
-        fprintf(ff, "%s%d ", (*i)&1 ? "-":"", (*i)>>1 );
-    fprintf(ff, "0\n");
-}
+void write_clause_to_file(FILE* ff, int& nClause, lit* begin, lit* end);
+int sat_solver_conditional_unequal(FILE* ff, int& nClause,  sat_solver * pSat, int iVar, int iVar2, int iVarCond );
+int sat_solver_iff_unequal(FILE* ff, int& nClause, sat_solver *pSat, int iVar, int iVar2, int iVarCond);
+int sat_solver_and(FILE* ff, int& nClause, sat_solver * pSat, int iVar, int iVar0, int iVar1, int fCompl0, int fCompl1, int fCompl );
+int sat_solver_buffer(FILE* ff, int& nClause, sat_solver * pSat, int iVarA, int iVarB, int fCompl );
+int sat_solver_const(FILE* ff, int& nClause, sat_solver * pSat, int iVar, int fCompl );
+int sat_solver_addclause_from( sat_solver* pSat, Cnf_Dat_t * pCnf );
+void sat_solver_print( sat_solver* pSat, int fDimacs );
 
-// (a == b + c)
-int sat_solver_conditional_unequal(FILE* ff, int& nClause,  sat_solver * pSat, int iVar, int iVar2, int iVarCond )
-{
-    lit Lits[3];
-    int Cid;
-    assert( iVar >= 0 );
-    assert( iVar2 >= 0 );
-    assert( iVarCond >= 0 );
+////////////////////////////////////////////////////////////////////////
+///                     FUNCTION DEFINITIONS                         ///
+////////////////////////////////////////////////////////////////////////
 
-    Lits[0] = toLitCond( iVarCond, 0 );
-    Lits[1] = toLitCond( iVar, 1 );
-    Lits[2] = toLitCond( iVar2, 0 );
-    Cid = sat_solver_addclause( pSat, Lits, Lits + 3 );
-    write_clause_to_file(ff, nClause, Lits, Lits + 3);
-    assert( Cid );
+/**Function*************************************************************
+  Known bugs  [Circuit to CNF formulation incorrect. ]
+  Synopsis    [ Sample output corrupted minterms regarding different wrong
+  keys through model counting. The construction of miter is through additional
+  CNF clauses. ]
+
+  Description [Prints out statistics over the output corruption behavior.]
+               
+  SideEffects []
+
+  SeeAlso     []
+
+***********************************************************************/
+void Sample_MC(Abc_Ntk_t * pNtk, int nKey) {
+    char Command[1000];
+    char cnfFileName[1000];
+    char resultFileName[1000];
     
-    Lits[0] = toLitCond( iVarCond, 0 );
-    Lits[1] = toLitCond( iVar, 0 );
-    Lits[2] = toLitCond( iVar2, 1 );
-    Cid = sat_solver_addclause( pSat, Lits, Lits + 3 );
-    write_clause_to_file(ff, nClause, Lits, Lits + 3);
-    assert( Cid );
-    
-    return 2;
-}
+    sprintf( cnfFileName, "C432.dimacs");
+    sprintf( resultFileName, "MCResult.txt");
+    int nPi = Abc_NtkCiNum(pNtk);
+    int nPo = Abc_NtkCoNum(pNtk);
+    int correctKey = 0;
+    int seed = 5;
+    std::vector<int> pCount;
 
-// (a != b <-> c)
-int sat_solver_iff_unequal(FILE* ff, int& nClause, sat_solver *pSat, int iVar, int iVar2, int iVarCond)
-{
-    // (x!=x' <> cond)
-    // (x=x' + cond)^(x!=x + ~cond)
-    lit Lits[3];
-    int Cid;
-    assert(iVar >= 0);
-    assert(iVar2 >= 0);
-    assert(iVarCond >= 0);
+    int res = 0; // Suppress warn_unused_result
 
-    // (x=x' + cond)
-    Lits[0] = toLitCond(iVarCond, 0);
-    Lits[1] = toLitCond(iVar, 1);
-    Lits[2] = toLitCond(iVar2, 0);
-    Cid = sat_solver_addclause(pSat, Lits, Lits + 3);
-    write_clause_to_file(ff, nClause, Lits, Lits + 3);
-    assert(Cid);
+    // Create general miter
+    insertKey(pNtk, nKey, seed, correctKey);
+    // Io_Write( pNtk, "keyInserted.blif", IO_FILE_BLIF );
 
-    Lits[0] = toLitCond(iVarCond, 0);
-    Lits[1] = toLitCond(iVar, 0);
-    Lits[2] = toLitCond(iVar2, 1);
-    Cid = sat_solver_addclause(pSat, Lits, Lits + 3);
-    write_clause_to_file(ff, nClause, Lits, Lits + 3);
-    assert(Cid);
-
-    // (x!=x + ~cond)
-    Lits[0] = toLitCond(iVarCond, 1);
-    Lits[1] = toLitCond(iVar, 0);
-    Lits[2] = toLitCond(iVar2, 0);
-    Cid = sat_solver_addclause(pSat, Lits, Lits + 3);
-    write_clause_to_file(ff, nClause, Lits, Lits + 3);
-    assert(Cid);
-
-    Lits[0] = toLitCond(iVarCond, 1);
-    Lits[1] = toLitCond(iVar, 1);
-    Lits[2] = toLitCond(iVar2, 1);
-    Cid = sat_solver_addclause(pSat, Lits, Lits + 3);
-    write_clause_to_file(ff, nClause, Lits, Lits + 3);
-    assert(Cid);
-
-    return 4;
-}
-
-int sat_solver_and(FILE* ff, int& nClause, sat_solver * pSat, int iVar, int iVar0, int iVar1, int fCompl0, int fCompl1, int fCompl )
-{
-    lit Lits[3];
-    int Cid;
-
-    Lits[0] = toLitCond( iVar, !fCompl );
-    Lits[1] = toLitCond( iVar0, fCompl0 );
-    Cid = sat_solver_addclause( pSat, Lits, Lits + 2 );
-    write_clause_to_file(ff, nClause, Lits, Lits + 2);
-    assert( Cid );
-
-    Lits[0] = toLitCond( iVar, !fCompl );
-    Lits[1] = toLitCond( iVar1, fCompl1 );
-    Cid = sat_solver_addclause( pSat, Lits, Lits + 2 );
-    write_clause_to_file(ff, nClause, Lits, Lits + 2);
-    assert( Cid );
-
-    Lits[0] = toLitCond( iVar, fCompl );
-    Lits[1] = toLitCond( iVar0, !fCompl0 );
-    Lits[2] = toLitCond( iVar1, !fCompl1 );
-    Cid = sat_solver_addclause( pSat, Lits, Lits + 3 );
-    write_clause_to_file(ff, nClause, Lits, Lits + 3);
-    assert( Cid );
-    return 3;
-}
-
-int sat_solver_buffer(FILE* ff, int& nClause, sat_solver * pSat, int iVarA, int iVarB, int fCompl )
-{
-    lit Lits[2];
-    int Cid;
-    assert( iVarA >= 0 && iVarB >= 0 );
-
-    Lits[0] = toLitCond( iVarA, 0 );
-    Lits[1] = toLitCond( iVarB, !fCompl );
-    Cid = sat_solver_addclause( pSat, Lits, Lits + 2 );
-    if ( Cid == 0 )
-        return 0;
-    write_clause_to_file(ff, nClause, Lits, Lits + 2);
-    assert( Cid );
-
-    Lits[0] = toLitCond( iVarA, 1 );
-    Lits[1] = toLitCond( iVarB, fCompl );
-    Cid = sat_solver_addclause( pSat, Lits, Lits + 2 );
-    if ( Cid == 0 )
-        return 0;
-    write_clause_to_file(ff, nClause, Lits, Lits + 2);
-    assert( Cid );
-    return 2;
-}
-
-int sat_solver_const(FILE* ff, int& nClause, sat_solver * pSat, int iVar, int fCompl )
-{
-    lit Lits[1];
-    int Cid;
-    assert( iVar >= 0 );
-
-    Lits[0] = toLitCond( iVar, fCompl );
-    Cid = sat_solver_addclause( pSat, Lits, Lits + 1 );
-    write_clause_to_file(ff, nClause, Lits, Lits + 1);
-    assert( Cid );
-    return 1;
-}
-
-int sat_solver_addclause_from( sat_solver* pSat, Cnf_Dat_t * pCnf )
-{
-    for (int i = 0; i < pCnf->nClauses; i++ )
-	{
-		if (!sat_solver_addclause( pSat, pCnf->pClauses[i], pCnf->pClauses[i+1] ))
-            return false;
-	}
-    return true;
-}
-
-void sat_solver_print( sat_solver* pSat, int fDimacs )
-{
-    Sat_Mem_t * pMem = &pSat->Mem;
-    clause * c;
-    int i, k, nUnits;
-
-    // count the number of unit clauses
-    nUnits = 0;
-    for ( i = 0; i < pSat->size; i++ )
-        if ( pSat->levels[i] == 0 && pSat->assigns[i] != 3 )
-            nUnits++;
-
-//    fprintf( pFile, "c CNF generated by ABC on %s\n", Extra_TimeStamp() );
-    printf( "p cnf %d %d\n", pSat->size, Sat_MemEntryNum(&pSat->Mem, 0)-1+Sat_MemEntryNum(&pSat->Mem, 1)+nUnits );
-
-    // write the original clauses
-    Sat_MemForEachClause( pMem, c, i, k )
-    {
-        int i;
-        for ( i = 0; i < (int)c->size; i++ )
-            printf( "%s%d ", (lit_sign(c->lits[i])? "-": ""),  lit_var(c->lits[i]) + (fDimacs>0) );
-        if ( fDimacs )
-            printf( "0" );
-        printf( "\n" );
+    Sample_MC_Miter(pNtk, nPi, nKey, nPo, cnfFileName);
+    // AddKeyInfo2CNF(cnfFileName, correctKey, 1, nKey);
+    //// approxmc 
+    printf("Invoke approxmc...\n");
+    sprintf( Command, "./approxmc %s > %s", cnfFileName, resultFileName);
+    res = system( Command );
+    if(res) {
+        printf("Approxmc execute with error. Aborted.\n");
     }
 
-    // write the learned clauses
-//    Sat_MemForEachLearned( pMem, c, i, k )
-//        Sat_SolverClauseWriteDimacs( pFile, c, fDimacs );
+    FILE* pf = NULL;
+    int count = 0;
+    pf = fopen(resultFileName, "r");
+    if(!pf) { printf("Error: Cannot open mc result file."); }
+    while(fscanf( pf, "%d", &count ) == 1);
+    fclose(pf);
+    printf("count = %i\n", count);
+    
+    /**
+    // Exhaustive counting
+    FILE* pf = NULL;
+    int count = 0;
+    for(int wrongKey=0; wrongKey<pow(2, nPi); wrongKey++) {
+        if(wrongKey == correctKey)
+            continue;
+        AddKeyInfo2CNF(cnfFileName, correctKey, wrongKey, nKey);
+        
+        //// approxmc 
+        sprintf( Command, "./approxmc %s >> %s", cnfFileName, resultFileName);
+        system( Command );
+        pf = NULL;
+        count = 0;
+        pf = fopen(resultFileName, "r");
+        if(!pf) { printf("Error: Cannot open mc result file."); }
+        while(fscanf( pf, "%d", &count ) == 1);
+        fclose(pf);
+        pCount.push_back(count);
+    }
+    **/
+}
 
-    // write zero-level assertions
-    for ( i = 0; i < pSat->size; i++ )
-        if ( pSat->levels[i] == 0 && pSat->assigns[i] != 3 ) // varX
-            printf( "%s%d%s\n",
-                     (pSat->assigns[i] == 1)? "-": "",    // var0
-                     i + (int)(fDimacs>0),
-                     (fDimacs) ? " 0" : "");
+/**Function*************************************************************
 
-    printf( "\n" );
+  Synopsis    [ Sample output corrupted minterms regarding different wrong
+  keys through model counting. The construction of miter is through building
+  miter circuit. ]
+
+  Description [Prints out statistics over the output corruption behavior.]
+               
+  SideEffects []
+
+  SeeAlso     []
+
+***********************************************************************/
+void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey) {
 
 }
 
-/////////////////////////////////////////////////////////
+// Half done function. Delete later.
+void WriteMiter(Abc_Ntk_t * pNtk1, Abc_Ntk_t * pNtk2) {
+    Abc_Ntk_t *pMiter;
+    // Abc_Ntk_t *pCnf;
+    sat_solver * pSat = sat_solver_new();
+    pMiter = Abc_NtkMiter(pNtk1, pNtk2, 1, 0, 0, 0);
+    if ( pMiter == NULL )
+    {
+        printf( "Miter computation has failed.\n" );
+        return;
+    }
+    /**
+    pCnf = Abc_NtkMulti( pMiter, 0, 100, 1, 0, 0, 0 );
+    Abc_NtkDelete( pMiter );
+    if ( pCnf == NULL )
+    {
+        printf( "Renoding for CNF has failed.\n" );
+        return;
+    }
+    // RetValue = Abc_NtkMiterSat( pCnf, (ABC_INT64_T)nConfLimit, (ABC_INT64_T)nInsLimit, 0, NULL, NULL );
+
+    pSat = (sat_solver *)Abc_NtkMiterSatCreate( pCnf, 0 );
+    if(pSat == NULL)
+    {
+        printf( "Creating sat solver instance failed.\n");
+        return;
+    }
+    **/
+    Aig_Man_t *pAigOut = Abc_NtkToDar(pMiter, 0, 0);
+    Cnf_Dat_t *pCnfOut = Cnf_Derive(pAigOut, Abc_NtkCoNum(pMiter));
+    Cnf_DataLift(pCnfOut, sat_solver_nvars(pSat));
+    sat_solver_addclause_from(pSat, pCnfOut);
+    Sat_SolverWriteDimacs(pSat, "Miter.dimacs", NULL, NULL, 1);
+
+    Abc_NtkDelete(pMiter);
+    sat_solver_delete( pSat );
+}
+
+// Insert XOR keys into network. Correct key combination is given through var correctKey.
 void insertKey(Abc_Ntk_t* pNtk, int nKey, int seed, int& correctKey) {
     Abc_Obj_t *pObj, *pFanout, *pNew;
     int k;
@@ -251,6 +206,7 @@ void insertKey(Abc_Ntk_t* pNtk, int nKey, int seed, int& correctKey) {
     correctKey = 0;
 }
 
+// Construct CNF file of the general miter with correct key & wrong key asserted to be all zeros.
 void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nPi, int nKey, int nPo, char* cnfFileName)
 {   
     FILE* ff = NULL;
@@ -436,17 +392,7 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nPi, int nKey, int nPo, char* cnfFile
     Vec_IntFree(pOut2Pi); Vec_IntFree(pOut2Key); Vec_IntFree(pOut2Po);
 }
 
-char * int2bitstring(int value, int length) {
-    char * one_line = new char[length+1];
-    one_line[length] = '\0';
-    for(int i=0; i<length; i++) {
-        int rbit = value%2;
-        one_line[i] = (rbit)? '1': '0';
-        value = value >> 1;
-    }
-    return one_line;
-}
-
+// Modify key values asserted in the CNF file.
 void AddKeyInfo2CNF(char* cnfFileName, int correctKey, int wrongKey, int nKey) {
     // key value assumptions are written to approxmc file starting at line 2, with a total of 2*nKey lines
     // line 0 is the indicated counting set
@@ -482,57 +428,213 @@ void AddKeyInfo2CNF(char* cnfFileName, int correctKey, int wrongKey, int nKey) {
     rename("tmp.dimacs", cnfFileName);   
 }
 
-// Should only plug in C432 ntk
-void Sample_MC(Abc_Ntk_t * pNtk, int nKey) {
-    char Command[1000];
-    char cnfFileName[1000];
-    char resultFileName[1000];
-    
-    sprintf( cnfFileName, "C432.dimacs");
-    sprintf( resultFileName, "MCResult.txt");
-    int nPi = Abc_NtkCiNum(pNtk);
-    int nPo = Abc_NtkCoNum(pNtk);
-    int correctKey = 0;
-    int seed = 5;
-    std::vector<int> pCount;
-
-    // Create general miter
-    insertKey(pNtk, nKey, seed, correctKey);
-    // Io_Write( pNtk, "keyInserted.blif", IO_FILE_BLIF );
-
-    Sample_MC_Miter(pNtk, nPi, nKey, nPo, cnfFileName);
-    // AddKeyInfo2CNF(cnfFileName, correctKey, 1, nKey);
-    //// approxmc 
-    printf("Invoke approxmc...\n");
-    sprintf( Command, "./approxmc %s > %s", cnfFileName, resultFileName);
-    system( Command );
-    FILE* pf = NULL;
-    int count = 0;
-    pf = fopen(resultFileName, "r");
-    if(!pf) { printf("Error: Cannot open mc result file."); }
-    while(fscanf( pf, "%d", &count ) == 1);
-    fclose(pf);
-    printf("count = %i\n", count);
-    
-    /**
-    // Exhaustive counting
-    FILE* pf = NULL;
-    int count = 0;
-    for(int wrongKey=0; wrongKey<pow(2, nPi); wrongKey++) {
-        if(wrongKey == correctKey)
-            continue;
-        AddKeyInfo2CNF(cnfFileName, correctKey, wrongKey, nKey);
-        
-        //// approxmc 
-        sprintf( Command, "./approxmc %s >> %s", cnfFileName, resultFileName);
-        system( Command );
-        pf = NULL;
-        count = 0;
-        pf = fopen(resultFileName, "r");
-        if(!pf) { printf("Error: Cannot open mc result file."); }
-        while(fscanf( pf, "%d", &count ) == 1);
-        fclose(pf);
-        pCount.push_back(count);
+////////////////////////////////////////////////////////////////////////
+///                        AUXILIARY                                 ///
+////////////////////////////////////////////////////////////////////////
+char * int2bitstring(int value, int length) {
+    char * one_line = new char[length+1];
+    one_line[length] = '\0';
+    for(int i=0; i<length; i++) {
+        int rbit = value%2;
+        one_line[i] = (rbit)? '1': '0';
+        value = value >> 1;
     }
-    **/
+    return one_line;
+}
+
+void write_clause_to_file(FILE* ff, int& nClause, lit* begin, lit* end)
+{
+    if(ff == NULL)
+        return;
+
+    lit* i;
+    nClause++;
+    for(i=begin; i<end; i++)
+        fprintf(ff, "%s%d ", (*i)&1 ? "-":"", (*i)>>1 );
+    fprintf(ff, "0\n");
+}
+
+// ((var1 == var2) + varCond)
+int sat_solver_conditional_unequal(FILE* ff, int& nClause,  sat_solver * pSat, int iVar, int iVar2, int iVarCond )
+{
+    lit Lits[3];
+    int Cid;
+    assert( iVar >= 0 );
+    assert( iVar2 >= 0 );
+    assert( iVarCond >= 0 );
+
+    Lits[0] = toLitCond( iVarCond, 0 );
+    Lits[1] = toLitCond( iVar, 1 );
+    Lits[2] = toLitCond( iVar2, 0 );
+    Cid = sat_solver_addclause( pSat, Lits, Lits + 3 );
+    write_clause_to_file(ff, nClause, Lits, Lits + 3);
+    assert( Cid );
+    
+    Lits[0] = toLitCond( iVarCond, 0 );
+    Lits[1] = toLitCond( iVar, 0 );
+    Lits[2] = toLitCond( iVar2, 1 );
+    Cid = sat_solver_addclause( pSat, Lits, Lits + 3 );
+    write_clause_to_file(ff, nClause, Lits, Lits + 3);
+    assert( Cid );
+    
+    return 2;
+}
+
+// ((var1 != var2) <-> varCond)
+int sat_solver_iff_unequal(FILE* ff, int& nClause, sat_solver *pSat, int iVar, int iVar2, int iVarCond)
+{
+    // (x!=x' <> cond)
+    // (x=x' + cond)^(x!=x + ~cond)
+    lit Lits[3];
+    int Cid;
+    assert(iVar >= 0);
+    assert(iVar2 >= 0);
+    assert(iVarCond >= 0);
+
+    // (x=x' + cond)
+    Lits[0] = toLitCond(iVarCond, 0);
+    Lits[1] = toLitCond(iVar, 1);
+    Lits[2] = toLitCond(iVar2, 0);
+    Cid = sat_solver_addclause(pSat, Lits, Lits + 3);
+    write_clause_to_file(ff, nClause, Lits, Lits + 3);
+    assert(Cid);
+
+    Lits[0] = toLitCond(iVarCond, 0);
+    Lits[1] = toLitCond(iVar, 0);
+    Lits[2] = toLitCond(iVar2, 1);
+    Cid = sat_solver_addclause(pSat, Lits, Lits + 3);
+    write_clause_to_file(ff, nClause, Lits, Lits + 3);
+    assert(Cid);
+
+    // (x!=x + ~cond)
+    Lits[0] = toLitCond(iVarCond, 1);
+    Lits[1] = toLitCond(iVar, 0);
+    Lits[2] = toLitCond(iVar2, 0);
+    Cid = sat_solver_addclause(pSat, Lits, Lits + 3);
+    write_clause_to_file(ff, nClause, Lits, Lits + 3);
+    assert(Cid);
+
+    Lits[0] = toLitCond(iVarCond, 1);
+    Lits[1] = toLitCond(iVar, 1);
+    Lits[2] = toLitCond(iVar2, 1);
+    Cid = sat_solver_addclause(pSat, Lits, Lits + 3);
+    write_clause_to_file(ff, nClause, Lits, Lits + 3);
+    assert(Cid);
+
+    return 4;
+}
+
+int sat_solver_and(FILE* ff, int& nClause, sat_solver * pSat, int iVar, int iVar0, int iVar1, int fCompl0, int fCompl1, int fCompl )
+{
+    lit Lits[3];
+    int Cid;
+
+    Lits[0] = toLitCond( iVar, !fCompl );
+    Lits[1] = toLitCond( iVar0, fCompl0 );
+    Cid = sat_solver_addclause( pSat, Lits, Lits + 2 );
+    write_clause_to_file(ff, nClause, Lits, Lits + 2);
+    assert( Cid );
+
+    Lits[0] = toLitCond( iVar, !fCompl );
+    Lits[1] = toLitCond( iVar1, fCompl1 );
+    Cid = sat_solver_addclause( pSat, Lits, Lits + 2 );
+    write_clause_to_file(ff, nClause, Lits, Lits + 2);
+    assert( Cid );
+
+    Lits[0] = toLitCond( iVar, fCompl );
+    Lits[1] = toLitCond( iVar0, !fCompl0 );
+    Lits[2] = toLitCond( iVar1, !fCompl1 );
+    Cid = sat_solver_addclause( pSat, Lits, Lits + 3 );
+    write_clause_to_file(ff, nClause, Lits, Lits + 3);
+    assert( Cid );
+    return 3;
+}
+
+int sat_solver_buffer(FILE* ff, int& nClause, sat_solver * pSat, int iVarA, int iVarB, int fCompl )
+{
+    lit Lits[2];
+    int Cid;
+    assert( iVarA >= 0 && iVarB >= 0 );
+
+    Lits[0] = toLitCond( iVarA, 0 );
+    Lits[1] = toLitCond( iVarB, !fCompl );
+    Cid = sat_solver_addclause( pSat, Lits, Lits + 2 );
+    if ( Cid == 0 )
+        return 0;
+    write_clause_to_file(ff, nClause, Lits, Lits + 2);
+    assert( Cid );
+
+    Lits[0] = toLitCond( iVarA, 1 );
+    Lits[1] = toLitCond( iVarB, fCompl );
+    Cid = sat_solver_addclause( pSat, Lits, Lits + 2 );
+    if ( Cid == 0 )
+        return 0;
+    write_clause_to_file(ff, nClause, Lits, Lits + 2);
+    assert( Cid );
+    return 2;
+}
+
+int sat_solver_const(FILE* ff, int& nClause, sat_solver * pSat, int iVar, int fCompl )
+{
+    lit Lits[1];
+    int Cid;
+    assert( iVar >= 0 );
+
+    Lits[0] = toLitCond( iVar, fCompl );
+    Cid = sat_solver_addclause( pSat, Lits, Lits + 1 );
+    write_clause_to_file(ff, nClause, Lits, Lits + 1);
+    assert( Cid );
+    return 1;
+}
+
+int sat_solver_addclause_from( sat_solver* pSat, Cnf_Dat_t * pCnf )
+{
+    for (int i = 0; i < pCnf->nClauses; i++ )
+	{
+		if (!sat_solver_addclause( pSat, pCnf->pClauses[i], pCnf->pClauses[i+1] ))
+            return false;
+	}
+    return true;
+}
+
+void sat_solver_print( sat_solver* pSat, int fDimacs )
+{
+    Sat_Mem_t * pMem = &pSat->Mem;
+    clause * c;
+    int i, k, nUnits;
+
+    // count the number of unit clauses
+    nUnits = 0;
+    for ( i = 0; i < pSat->size; i++ )
+        if ( pSat->levels[i] == 0 && pSat->assigns[i] != 3 )
+            nUnits++;
+
+//    fprintf( pFile, "c CNF generated by ABC on %s\n", Extra_TimeStamp() );
+    printf( "p cnf %d %d\n", pSat->size, Sat_MemEntryNum(&pSat->Mem, 0)-1+Sat_MemEntryNum(&pSat->Mem, 1)+nUnits );
+
+    // write the original clauses
+    Sat_MemForEachClause( pMem, c, i, k )
+    {
+        int i;
+        for ( i = 0; i < (int)c->size; i++ )
+            printf( "%s%d ", (lit_sign(c->lits[i])? "-": ""),  lit_var(c->lits[i]) + (fDimacs>0) );
+        if ( fDimacs )
+            printf( "0" );
+        printf( "\n" );
+    }
+
+    // write the learned clauses
+//    Sat_MemForEachLearned( pMem, c, i, k )
+//        Sat_SolverClauseWriteDimacs( pFile, c, fDimacs );
+
+    // write zero-level assertions
+    for ( i = 0; i < pSat->size; i++ )
+        if ( pSat->levels[i] == 0 && pSat->assigns[i] != 3 ) // varX
+            printf( "%s%d%s\n",
+                     (pSat->assigns[i] == 1)? "-": "",    // var0
+                     i + (int)(fDimacs>0),
+                     (fDimacs) ? " 0" : "");
+
+    printf( "\n" );
+
 }
