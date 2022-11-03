@@ -17,6 +17,8 @@ Abc_Ntk_t * Sample_MC_MiterInt(Abc_Ntk_t * pNtk, int nKey);
 static void ntkMiterPrepare( Abc_Ntk_t * pNtk1, Abc_Ntk_t * pNtk2, Abc_Ntk_t * pNtkMiter, int nPi, int nKey);
 static void ntkMiterAddOne( Abc_Ntk_t * pNtk, Abc_Ntk_t * pNtkMiter);
 static void ntkMiterFinalize( Abc_Ntk_t * pNtk1, Abc_Ntk_t * pNtk2, Abc_Ntk_t * pNtkMiter);
+static void Write_File_Miter_Counting( Abc_Ntk_t * pNtkMiter, char * fileName, int nPi, int nKey);
+static void Write_File_Miter_Counting_Header(char * fileName);
 
 void AddKeyInfo2CNF(char* cnfFileName, int correctKey, int wrongKey, int nKey);
 
@@ -135,9 +137,12 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey) {
     // int fTrans       = 0; // toggle XORing pair-wise POs of the miter
     // int fIgnoreNames = 0; // toggle ignoring names when matching CIs/COs 
 
-    Abc_Ntk_t * pNtkTemp, *pNtkRes;
+    Abc_Ntk_t * pNtkTemp, *pNtkMiter;
     int seed = 5;
     int correctKey = 0;
+    int nPi = Abc_NtkCiNum(pNtk);
+    char miterFileName[1000];
+    sprintf(miterFileName, "TMP");
 
     // Insert keys
     insertKey(pNtk, nKey, seed, correctKey);
@@ -150,12 +155,15 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey) {
     }
 
     // Compute the miter
-    pNtkRes = Sample_MC_MiterInt(pNtk, nKey);
-    if( pNtkRes == NULL ) {
+    pNtkMiter = Sample_MC_MiterInt(pNtk, nKey);
+    if( pNtkMiter == NULL ) {
         Abc_Print( -1, "Miter computation has failed.\n" );
         return;
     }
 
+    // Network to CNF
+    Write_File_Miter_Counting( pNtkMiter, miterFileName, nPi, nKey);
+    
     // Do the rest
     
 }
@@ -394,8 +402,6 @@ Abc_Ntk_t * Sample_MC_MiterInt(Abc_Ntk_t * pNtk, int nKey) {
     char buf[1000];
     Abc_Ntk_t * pNtkDup, *pNtkMiter;
     int nPi = Abc_NtkCiNum(pNtk) - nKey;
-    Abc_Obj_t * pObj; 
-    int i;
 
     assert( Abc_NtkIsStrash(pNtk) );
 
@@ -420,6 +426,9 @@ Abc_Ntk_t * Sample_MC_MiterInt(Abc_Ntk_t * pNtk, int nKey) {
     }
 
 // Debug
+//    Abc_Obj_t * pObj; 
+//    int i;
+//    
 //    Abc_NtkPrintStats(pNtkMiter, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 //    Abc_NtkForEachCi( pNtkMiter, pObj, i)
 //        printf(" %s", Abc_ObjName(pObj));
@@ -495,6 +504,75 @@ void ntkMiterFinalize( Abc_Ntk_t * pNtk1, Abc_Ntk_t * pNtk2, Abc_Ntk_t * pNtkMit
         pMiter = Abc_AigXor( (Abc_Aig_t *)pNtkMiter->pManFunc, Abc_ObjChild0Copy(pNode), Abc_ObjChild0Copy(Abc_NtkCo(pNtk2, i)));
         Abc_ObjAddFanin( Abc_NtkPo(pNtkMiter, i), pMiter);
     }
+}
+
+void Write_File_Miter_Counting( Abc_Ntk_t * pNtkMiter, char * fileName, int nPi, int nKey) {
+    sat_solver *pSolver = sat_solver_new();
+    int cid;
+    int nPo = Abc_NtkCoNum(pNtkMiter);
+
+    Vec_Int_t *pPi = Vec_IntAlloc(nPi);
+    Vec_Int_t *pKey1 = Vec_IntAlloc(nKey);
+    Vec_Int_t *pKey2 = Vec_IntAlloc(nKey);
+    Vec_Int_t *pPo = Vec_IntAlloc(nPo);
+    {
+        Aig_Man_t *pAig = Abc_NtkToDar(pNtkMiter, 0, 0);
+        Cnf_Dat_t *pCnf = Cnf_Derive(pAig, nPo);
+        Cnf_DataLift(pCnf, sat_solver_nvars(pSolver));
+        sat_solver_addclause_from(pSolver, pCnf);
+        // store critical variables
+        for (int i = 0; i < nPi; i++)
+        {
+            Aig_Obj_t *pAigObj = Aig_ManCi(pCnf->pMan, i);
+            int var = pCnf->pVarNums[Aig_ObjId(pAigObj)];
+            Vec_IntPush(pPi, var);
+        }
+        for (int i = nPi; i < nPi+nKey; i++)
+        {
+            Aig_Obj_t *pAigObj = Aig_ManCi(pCnf->pMan, i);
+            int var = pCnf->pVarNums[Aig_ObjId(pAigObj)];
+            Vec_IntPush(pKey1, var);
+        }
+        for (int i = nPi+nKey; i < nPi+nKey+nKey; i++)
+        {
+            Aig_Obj_t *pAigObj = Aig_ManCi(pCnf->pMan, i);
+            int var = pCnf->pVarNums[Aig_ObjId(pAigObj)];
+            Vec_IntPush(pKey2, var);
+        }
+        for (int i = 0; i < nPo; i++)
+        {
+            Aig_Obj_t *pAigObj = Aig_ManCo(pCnf->pMan, i);
+            Aig_Obj_t *pAigObjFanin1 = Aig_ObjFanin0(pAigObj);
+            int var = pCnf->pVarNums[Aig_ObjId(pAigObjFanin1)];
+            Vec_IntPush(pPo, var);
+        }
+        // memory free
+        Cnf_DataFree(pCnf);
+        Aig_ManStop(pAig);
+    }
+    
+    // Assert miter outputs to be at least one bit different
+    lit Lits_Gamma[nPo];
+    for(int i=0; i<nPo; i++)
+    {
+        int var = Vec_IntEntry(pPo, i);
+        Lits_Gamma[i] = toLitCond(var, 0);
+    }
+    cid = sat_solver_addclause(pSolver, Lits_Gamma, Lits_Gamma + nPo);
+    assert(cid);
+    // sat_solver_print(pSolver, 1);
+
+    // Note: option fIncrement adds an 0 to the end of each line, and
+    // to accomplish that, every variable index is also incremented. 
+    // Thus, when writing directly to the output files ,do not forget 
+    // to increment the target variable index.
+    Sat_SolverWriteDimacs(pSolver, fileName, NULL, NULL, 1);
+    Write_File_Miter_Counting_Header(fileName);
+}
+
+// Add header & key variable assertions to file
+void Write_File_Miter_Counting_Header(char * fileName) {
+
 }
 
 // Modify key values asserted in the CNF file.
