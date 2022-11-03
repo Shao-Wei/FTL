@@ -5,6 +5,9 @@
 #include <vector>
 #include <stdlib.h>        // rand()
 
+/*== base/abci/abcDar.c ==*/
+extern "C" { Aig_Man_t *Abc_NtkToDar(Abc_Ntk_t *pNtk, int fExors, int fRegisters); }
+
 ABC_NAMESPACE_IMPL_START
 /////////////////////////////////////////////////////////
 
@@ -24,10 +27,6 @@ static void Write_File_Miter_Counting_Header(char * fileName);
 void AddKeyInfo2CNF(char* cnfFileName, int correctKey, int wrongKey, int nKey);
 
 //// Aux ///////////////////////////////////////////////////////////////
-/*== base/abci/abcDar.c ==*/
-extern "C" { Aig_Man_t *Abc_NtkToDar(Abc_Ntk_t *pNtk, int fExors, int fRegisters); }
-// extern "C" {Abc_Ntk_t * Abc_NtkMulti( Abc_Ntk_t * pNtk, int nThresh, int nFaninMax, int fCnf, int fMulti, int fSimple, int fFactor ); }
-
 char * int2bitstring(int value, int length);
 
 void write_clause_to_file(FILE* ff, int& nClause, lit* begin, lit* end);
