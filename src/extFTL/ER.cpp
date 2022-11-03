@@ -12,7 +12,12 @@
 ////////////////////////////////////////////////////////////////////////
 void insertKey(Abc_Ntk_t* pNtk, int nKey, int seed, int& correctKey);
 
-void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nPi, int nKey, int nPo, char* cnfFileName);
+void Sample_MCInt(Abc_Ntk_t * pNtk, int nPi, int nKey, int nPo, char* cnfFileName);
+Abc_Ntk_t * Sample_MC_MiterInt(Abc_Ntk_t * pNtk, int nKey);
+static void ntkMiterPrepare( Abc_Ntk_t * pNtk1, Abc_Ntk_t * pNtk2, Abc_Ntk_t * pNtkMiter, int nPi, int nKey);
+static void ntkMiterAddOne( Abc_Ntk_t * pNtk, Abc_Ntk_t * pNtkMiter);
+static void ntkMiterFinalize( Abc_Ntk_t * pNtk1, Abc_Ntk_t * pNtk2, Abc_Ntk_t * pNtkMiter);
+
 void AddKeyInfo2CNF(char* cnfFileName, int correctKey, int wrongKey, int nKey);
 
 //// Aux ///////////////////////////////////////////////////////////////
@@ -67,7 +72,7 @@ void Sample_MC(Abc_Ntk_t * pNtk, int nKey) {
     insertKey(pNtk, nKey, seed, correctKey);
     // Io_Write( pNtk, "keyInserted.blif", IO_FILE_BLIF );
 
-    Sample_MC_Miter(pNtk, nPi, nKey, nPo, cnfFileName);
+    Sample_MCInt(pNtk, nPi, nKey, nPo, cnfFileName);
     // AddKeyInfo2CNF(cnfFileName, correctKey, 1, nKey);
     //// approxmc 
     printf("Invoke approxmc...\n");
@@ -122,45 +127,37 @@ void Sample_MC(Abc_Ntk_t * pNtk, int nKey) {
 
 ***********************************************************************/
 void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey) {
+    // int fComb        = 1; // toggles deriving combinational miter
+    // int fCheck       = 1; // toggles network check, should always be true
+    // int fImplic      = 0; // toggles deriving implication miter
+    // int fMulti       = 1; // toggles creating multi-output miter
+    // int nPartSize    = 0; // output partition size
+    // int fTrans       = 0; // toggle XORing pair-wise POs of the miter
+    // int fIgnoreNames = 0; // toggle ignoring names when matching CIs/COs 
 
-}
+    Abc_Ntk_t * pNtkTemp, *pNtkRes;
+    int seed = 5;
+    int correctKey = 0;
 
-// Half done function. Delete later.
-void WriteMiter(Abc_Ntk_t * pNtk1, Abc_Ntk_t * pNtk2) {
-    Abc_Ntk_t *pMiter;
-    // Abc_Ntk_t *pCnf;
-    sat_solver * pSat = sat_solver_new();
-    pMiter = Abc_NtkMiter(pNtk1, pNtk2, 1, 0, 0, 0);
-    if ( pMiter == NULL )
-    {
-        printf( "Miter computation has failed.\n" );
+    // Insert keys
+    insertKey(pNtk, nKey, seed, correctKey);
+
+    // Make sure network is strashed
+    if ( !Abc_NtkIsStrash(pNtk) ) {
+        pNtkTemp = Abc_NtkStrash( pNtk, 0, 1, 0 );
+        Abc_NtkDelete(pNtk);
+        pNtk = pNtkTemp;
+    }
+
+    // Compute the miter
+    pNtkRes = Sample_MC_MiterInt(pNtk, nKey);
+    if( pNtkRes == NULL ) {
+        Abc_Print( -1, "Miter computation has failed.\n" );
         return;
     }
-    /**
-    pCnf = Abc_NtkMulti( pMiter, 0, 100, 1, 0, 0, 0 );
-    Abc_NtkDelete( pMiter );
-    if ( pCnf == NULL )
-    {
-        printf( "Renoding for CNF has failed.\n" );
-        return;
-    }
-    // RetValue = Abc_NtkMiterSat( pCnf, (ABC_INT64_T)nConfLimit, (ABC_INT64_T)nInsLimit, 0, NULL, NULL );
 
-    pSat = (sat_solver *)Abc_NtkMiterSatCreate( pCnf, 0 );
-    if(pSat == NULL)
-    {
-        printf( "Creating sat solver instance failed.\n");
-        return;
-    }
-    **/
-    Aig_Man_t *pAigOut = Abc_NtkToDar(pMiter, 0, 0);
-    Cnf_Dat_t *pCnfOut = Cnf_Derive(pAigOut, Abc_NtkCoNum(pMiter));
-    Cnf_DataLift(pCnfOut, sat_solver_nvars(pSat));
-    sat_solver_addclause_from(pSat, pCnfOut);
-    Sat_SolverWriteDimacs(pSat, "Miter.dimacs", NULL, NULL, 1);
-
-    Abc_NtkDelete(pMiter);
-    sat_solver_delete( pSat );
+    // Do the rest
+    
 }
 
 // Insert XOR keys into network. Correct key combination is given through var correctKey.
@@ -207,7 +204,7 @@ void insertKey(Abc_Ntk_t* pNtk, int nKey, int seed, int& correctKey) {
 }
 
 // Construct CNF file of the general miter with correct key & wrong key asserted to be all zeros.
-void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nPi, int nKey, int nPo, char* cnfFileName)
+void Sample_MCInt(Abc_Ntk_t * pNtk, int nPi, int nKey, int nPo, char* cnfFileName)
 {   
     FILE* ff = NULL;
     int nVar = 0, nClause = 0;
@@ -390,6 +387,114 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nPi, int nKey, int nPo, char* cnfFile
     Vec_IntFree(pGammaControls);
     Vec_IntFree(pOut1Pi); Vec_IntFree(pOut1Key); Vec_IntFree(pOut1Po);
     Vec_IntFree(pOut2Pi); Vec_IntFree(pOut2Key); Vec_IntFree(pOut2Po);
+}
+
+// Construct general miter network of the key inserted pNtk 
+Abc_Ntk_t * Sample_MC_MiterInt(Abc_Ntk_t * pNtk, int nKey) {
+    char buf[1000];
+    Abc_Ntk_t * pNtkDup, *pNtkMiter;
+    int nPi = Abc_NtkCiNum(pNtk) - nKey;
+    Abc_Obj_t * pObj; 
+    int i;
+
+    assert( Abc_NtkIsStrash(pNtk) );
+
+    // Start a new network
+    pNtkMiter = Abc_NtkAlloc( ABC_NTK_STRASH, ABC_FUNC_AIG, 1);
+    sprintf( buf, "%s_key_inserted_miter", pNtk->pName);
+    pNtkMiter->pName = Extra_UtilStrsav(buf);
+
+    // Perform strashing
+    pNtkDup = Abc_NtkDup(pNtk);
+    ntkMiterPrepare( pNtk, pNtkDup, pNtkMiter, nPi, nKey);
+    ntkMiterAddOne( pNtk, pNtkMiter);
+    ntkMiterAddOne( pNtkDup, pNtkMiter);
+    ntkMiterFinalize( pNtk, pNtkDup, pNtkMiter);
+    Abc_AigCleanup((Abc_Aig_t *)pNtkMiter->pManFunc);
+
+    if ( !Abc_NtkCheck( pNtkMiter ) )
+    {
+        printf( "Sample_MC_MiterInt: The network check has failed.\n" );
+        Abc_NtkDelete( pNtkMiter );
+        return NULL;
+    }
+
+// Debug
+//    Abc_NtkPrintStats(pNtkMiter, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+//    Abc_NtkForEachCi( pNtkMiter, pObj, i)
+//        printf(" %s", Abc_ObjName(pObj));
+//    printf("\n");
+//    Abc_NtkForEachCo( pNtkMiter, pObj, i)
+//        printf(" %s", Abc_ObjName(pObj));
+//    printf("\n");
+
+    return pNtkMiter;
+}
+
+// Prepares the network for mitering 
+void ntkMiterPrepare( Abc_Ntk_t * pNtk1, Abc_Ntk_t * pNtk2, Abc_Ntk_t * pNtkMiter, int nPi, int nKey)
+{
+    Abc_Obj_t * pObj, * pObjNew;
+    int i;
+    char buf[1000];
+
+    Abc_AigConst1(pNtk1)->pCopy = Abc_AigConst1(pNtkMiter);
+    Abc_AigConst1(pNtk2)->pCopy = Abc_AigConst1(pNtkMiter);
+
+    // create new PIs and remember them in the old PIs. Key inputs stay as two copies
+    for(int i=0; i<nPi; i++) {
+        pObj = Abc_NtkCi(pNtk1, i);
+        pObjNew = Abc_NtkCreatePi( pNtkMiter );
+        // remember this PI in the old PIs
+        pObj->pCopy = pObjNew;
+        pObj = Abc_NtkCi(pNtk2, i);  
+        pObj->pCopy = pObjNew;
+        Abc_ObjAssignName( pObjNew, Abc_ObjName(pObj), NULL );
+    }
+    for(int i=nPi; i<nPi+nKey; i++) {
+        pObj = Abc_NtkCi(pNtk1, i);
+        pObjNew = Abc_NtkCreatePi( pNtkMiter );
+        // remember this PI in the old PIs
+        pObj->pCopy = pObjNew;
+        sprintf( buf, "%s_1", Abc_ObjName(pObj));
+        Abc_ObjAssignName( pObjNew, buf, NULL );
+    }
+    for(int i=nPi; i<nPi+nKey; i++) {
+        pObj = Abc_NtkCi(pNtk2, i);
+        pObjNew = Abc_NtkCreatePi( pNtkMiter );
+        // remember this PI in the old PIs
+        pObj->pCopy = pObjNew;
+        sprintf( buf, "%s_2", Abc_ObjName(pObj));
+        Abc_ObjAssignName( pObjNew, buf, NULL );
+    }
+    // create POs
+    Abc_NtkForEachCo( pNtk1, pObj, i )
+    {
+        pObjNew = Abc_NtkCreatePo( pNtkMiter );
+        sprintf( buf, "miter_%s", Abc_ObjName(pObj));
+        Abc_ObjAssignName( pObjNew, buf, NULL);
+    }  
+}
+
+// Performs mitering for one network
+void ntkMiterAddOne( Abc_Ntk_t * pNtk, Abc_Ntk_t * pNtkMiter) {
+    Abc_Obj_t * pNode;
+    int i;
+    assert( Abc_NtkIsDfsOrdered(pNtk) );
+    Abc_AigForEachAnd( pNtk, pNode, i )
+        pNode->pCopy = Abc_AigAnd( (Abc_Aig_t *)pNtkMiter->pManFunc, Abc_ObjChild0Copy(pNode), Abc_ObjChild1Copy(pNode) );
+}
+
+// Finalize the miter by adding the output part
+void ntkMiterFinalize( Abc_Ntk_t * pNtk1, Abc_Ntk_t * pNtk2, Abc_Ntk_t * pNtkMiter) {
+    Abc_Obj_t * pMiter, * pNode;
+    int i;
+
+    // Add miter for all Po
+    Abc_NtkForEachCo(pNtk1, pNode, i ) {
+        pMiter = Abc_AigXor( (Abc_Aig_t *)pNtkMiter->pManFunc, Abc_ObjChild0Copy(pNode), Abc_ObjChild0Copy(Abc_NtkCo(pNtk2, i)));
+        Abc_ObjAddFanin( Abc_NtkPo(pNtkMiter, i), pMiter);
+    }
 }
 
 // Modify key values asserted in the CNF file.
