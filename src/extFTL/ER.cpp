@@ -22,7 +22,7 @@ static void ntkMiterPrepare( Abc_Ntk_t * pNtk1, Abc_Ntk_t * pNtk2, Abc_Ntk_t * p
 static void ntkMiterAddOne( Abc_Ntk_t * pNtk, Abc_Ntk_t * pNtkMiter);
 static void ntkMiterFinalize( Abc_Ntk_t * pNtk1, Abc_Ntk_t * pNtk2, Abc_Ntk_t * pNtkMiter);
 static void Write_File_Miter_Counting( Abc_Ntk_t * pNtkMiter, char * fileName, int nPi, int nKey);
-static void Write_File_Miter_Counting_Header(char * fileName);
+static void Write_File_Miter_Counting_Header(char * fileName, Vec_Int_t * pPi, Vec_Int_t * pKey1, Vec_Int_t * pKey2, Vec_Int_t * pPo);
 
 void AddKeyInfo2CNF(char* cnfFileName, int correctKey, int wrongKey, int nKey);
 
@@ -142,7 +142,7 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey) {
     int correctKey = 0;
     int nPi = Abc_NtkCiNum(pNtk);
     char miterFileName[1000];
-    sprintf(miterFileName, "TMP");
+    sprintf(miterFileName, "MITER.dimacs");
 
     // Insert keys
     insertKey(pNtk, nKey, seed, correctKey);
@@ -567,12 +567,53 @@ void Write_File_Miter_Counting( Abc_Ntk_t * pNtkMiter, char * fileName, int nPi,
     // Thus, when writing directly to the output files ,do not forget 
     // to increment the target variable index.
     Sat_SolverWriteDimacs(pSolver, fileName, NULL, NULL, 1);
-    Write_File_Miter_Counting_Header(fileName);
+    Write_File_Miter_Counting_Header(fileName, pPi, pKey1, pKey2, pPo);
+
+    // Clean up
+    sat_solver_delete(pSolver);
+    Vec_IntFree(pPi);
+    Vec_IntFree(pKey1);
+    Vec_IntFree(pKey2);
+    Vec_IntFree(pPo);
 }
 
 // Add header & key variable assertions to file
-void Write_File_Miter_Counting_Header(char * fileName) {
+void Write_File_Miter_Counting_Header(char * fileName, Vec_Int_t * pPi, Vec_Int_t * pKey1, Vec_Int_t * pKey2, Vec_Int_t * pPo) {
+    char tmpFileName[1000];
+    sprintf(tmpFileName, "miterToBeReplaced.dimacs");
+    int nPi = Vec_IntSize(pPi);
+    int nKey = Vec_IntSize(pKey1);
+    int nVar, nClause;
 
+    FILE* fRead = fopen(fileName, "r");
+    FILE* fWrite = fopen(tmpFileName, "w");
+    char buff[1000];
+    char * t;
+    char * line __attribute__((unused)); // Suppress fget warnings
+
+    fprintf(fWrite, "c ind"); // c ind <sampled set>
+    for(int i=0; i<nPi; i++)
+        fprintf(fWrite, " %i", Vec_IntEntry(pPi, i)+1);
+    fprintf(fWrite, " 0\n");
+    line = fgets(buff, 1000, fRead); // p cnf
+    t = strtok(buff, " \n");
+    t = strtok(NULL, " \n"); 
+    t = strtok(NULL, " \n"); 
+    nVar = atoi(t);
+    t = strtok(NULL, " \n"); 
+    nClause = atoi(t) + 2 * nKey;
+    fprintf(fWrite, "p cnf %i %i\n", nVar, nClause);
+    for(int i=0; i<nKey; i++) // key assumptions
+        fprintf(fWrite, "%i 0\n", Vec_IntEntry(pKey1, i)+1);
+    for(int i=0; i<nKey; i++)
+        fprintf(fWrite, "%i 0\n", Vec_IntEntry(pKey2, i)+1);
+    while(fgets(buff, 1000, fRead)) {
+        fprintf(fWrite, "%s", buff);
+    }
+    fclose(fRead);
+    fclose(fWrite);
+    remove(fileName);
+    rename(tmpFileName, fileName);
 }
 
 // Modify key values asserted in the CNF file.
