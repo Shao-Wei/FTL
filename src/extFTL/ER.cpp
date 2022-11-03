@@ -5,6 +5,7 @@
 #include <vector>
 #include <stdlib.h>        // rand()
 
+ABC_NAMESPACE_IMPL_START
 /////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////
@@ -821,3 +822,6 @@ void sat_solver_print( sat_solver* pSat, int fDimacs )
     printf( "\n" );
 
 }
+
+
+ABC_NAMESPACE_IMPL_END
