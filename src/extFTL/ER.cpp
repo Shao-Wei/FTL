@@ -21,8 +21,8 @@ Abc_Ntk_t * Sample_MC_MiterInt(Abc_Ntk_t * pNtk, int nKey);
 static void ntkMiterPrepare( Abc_Ntk_t * pNtk1, Abc_Ntk_t * pNtk2, Abc_Ntk_t * pNtkMiter, int nPi, int nKey);
 static void ntkMiterAddOne( Abc_Ntk_t * pNtk, Abc_Ntk_t * pNtkMiter);
 static void ntkMiterFinalize( Abc_Ntk_t * pNtk1, Abc_Ntk_t * pNtk2, Abc_Ntk_t * pNtkMiter);
-static void Write_File_Miter_Counting( Abc_Ntk_t * pNtkMiter, char * fileName, int nPi, int nKey);
-static void Write_File_Miter_Counting_Header(char * fileName, Vec_Int_t * pPi, Vec_Int_t * pKey1, Vec_Int_t * pKey2, Vec_Int_t * pPo);
+static void Write_File_Miter_Counting( Abc_Ntk_t * pNtkMiter, char * fileName, int nPi, int nKey, int fVerbose);
+static void Write_File_Miter_Counting_Header(char * fileName, Vec_Int_t * pPi, Vec_Int_t * pKey1, Vec_Int_t * pKey2, Vec_Int_t * pPo, int skipKeyAssumption);
 
 void AddKeyInfo2CNF(char* cnfFileName, int correctKey, int wrongKey, int nKey);
 
@@ -128,7 +128,7 @@ void Sample_MC(Abc_Ntk_t * pNtk, int nKey) {
   SeeAlso     []
 
 ***********************************************************************/
-void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey) {
+void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose) {
     // int fComb        = 1; // toggles deriving combinational miter
     // int fCheck       = 1; // toggles network check, should always be true
     // int fImplic      = 0; // toggles deriving implication miter
@@ -162,7 +162,7 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey) {
     }
 
     // Network to CNF
-    Write_File_Miter_Counting( pNtkMiter, miterFileName, nPi, nKey);
+    Write_File_Miter_Counting( pNtkMiter, miterFileName, nPi, nKey, fVerbose);
     
     // Do the rest
     
@@ -425,6 +425,8 @@ Abc_Ntk_t * Sample_MC_MiterInt(Abc_Ntk_t * pNtk, int nKey) {
         return NULL;
     }
 
+    Abc_NtkPrintStats(pNtkMiter, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
 // Debug
 //    Abc_Obj_t * pObj; 
 //    int i;
@@ -506,8 +508,9 @@ void ntkMiterFinalize( Abc_Ntk_t * pNtk1, Abc_Ntk_t * pNtk2, Abc_Ntk_t * pNtkMit
     }
 }
 
-void Write_File_Miter_Counting( Abc_Ntk_t * pNtkMiter, char * fileName, int nPi, int nKey) {
+void Write_File_Miter_Counting( Abc_Ntk_t * pNtkMiter, char * fileName, int nPi, int nKey, int fVerbose) {
     sat_solver *pSolver = sat_solver_new();
+    int status;
     int cid;
     int nPo = Abc_NtkCoNum(pNtkMiter);
 
@@ -542,8 +545,7 @@ void Write_File_Miter_Counting( Abc_Ntk_t * pNtkMiter, char * fileName, int nPi,
         for (int i = 0; i < nPo; i++)
         {
             Aig_Obj_t *pAigObj = Aig_ManCo(pCnf->pMan, i);
-            Aig_Obj_t *pAigObjFanin1 = Aig_ObjFanin0(pAigObj);
-            int var = pCnf->pVarNums[Aig_ObjId(pAigObjFanin1)];
+            int var = pCnf->pVarNums[Aig_ObjId(pAigObj)];
             Vec_IntPush(pPo, var);
         }
         // memory free
@@ -552,22 +554,70 @@ void Write_File_Miter_Counting( Abc_Ntk_t * pNtkMiter, char * fileName, int nPi,
     }
     
     // Assert miter outputs to be at least one bit different
-    lit Lits_Gamma[nPo];
-    for(int i=0; i<nPo; i++)
-    {
-        int var = Vec_IntEntry(pPo, i);
-        Lits_Gamma[i] = toLitCond(var, 0);
+    int pMiterLits[nPo];
+    for(int i=0; i<nPo; i++) {
+        pMiterLits[i] = Abc_Var2Lit(Vec_IntEntry(pPo, i), 0);
     }
-    cid = sat_solver_addclause(pSolver, Lits_Gamma, Lits_Gamma + nPo);
+    cid = sat_solver_addclause(pSolver, pMiterLits, pMiterLits + nPo);
     assert(cid);
-    // sat_solver_print(pSolver, 1);
+
+    if(fVerbose) {
+        printf("pPi");
+        for(int i=0; i<nPi; i++) {
+            printf(" %i", Vec_IntEntry(pPi, i));
+        }
+        printf("\n");
+        printf("pKey1");
+        for(int i=0; i<nKey; i++) {
+            printf(" %i", Vec_IntEntry(pKey1, i));
+        }
+        printf("\n");
+        printf("pKey2");
+        for(int i=0; i<nKey; i++) {
+            printf(" %i", Vec_IntEntry(pKey2, i));
+        }
+        printf("\n");
+        printf("pPo");
+        for(int i=0; i<nPo; i++) {
+            printf(" %i", Vec_IntEntry(pPo, i));
+        }
+        printf("\n");
+    }
+    /**
+     * Equal Key Value Check
+     * Assert key1 key2 to be the same
+     * SAT solving the miter should be UNSAT
+     */
+    int pLits[nKey + nKey];
+    for(int i=0; i<nKey; i++) {
+        pLits[i] = Abc_Var2Lit(Vec_IntEntry(pKey1, i), 0);
+    }
+    for(int i=0; i<nKey; i++) {
+        pLits[i+nKey] = Abc_Var2Lit(Vec_IntEntry(pKey2, i), 0);
+    }
+    status = sat_solver_solve(pSolver, pLits, pLits+nKey+nKey, 0, 0, 0, 0);
+    printf("Equal Key Value Check: %s\n", (status == l_False)? "pass": "fail");
+    if(status == l_True) {
+        // sat_solver_print(pSolver, 1);
+        // print assignment
+        Abc_Print( 1, "v" );
+        for (int v = 0; v < sat_solver_nvars(pSolver); v++)
+        {
+            int value = sat_solver_var_value(pSolver, v);
+            Abc_Print( 1, " %s%d", (value ? "":"-"), v );
+        }
+        Abc_Print( 1, "\n" );
+    }
 
     // Note: option fIncrement adds an 0 to the end of each line, and
     // to accomplish that, every variable index is also incremented. 
     // Thus, when writing directly to the output files ,do not forget 
     // to increment the target variable index.
-    Sat_SolverWriteDimacs(pSolver, fileName, NULL, NULL, 1);
-    Write_File_Miter_Counting_Header(fileName, pPi, pKey1, pKey2, pPo);
+
+    // Sat_SolverWriteDimacs(pSolver, fileName, NULL, NULL, 1);
+    // Write_File_Miter_Counting_Header(fileName, pPi, pKey1, pKey2, pPo, 0);
+    Sat_SolverWriteDimacs(pSolver, fileName, pLits, pLits+nKey+nKey, 1);
+    Write_File_Miter_Counting_Header(fileName, pPi, pKey1, pKey2, pPo, 1);
 
     // Clean up
     sat_solver_delete(pSolver);
@@ -578,7 +628,7 @@ void Write_File_Miter_Counting( Abc_Ntk_t * pNtkMiter, char * fileName, int nPi,
 }
 
 // Add header & key variable assertions to file
-void Write_File_Miter_Counting_Header(char * fileName, Vec_Int_t * pPi, Vec_Int_t * pKey1, Vec_Int_t * pKey2, Vec_Int_t * pPo) {
+void Write_File_Miter_Counting_Header(char * fileName, Vec_Int_t * pPi, Vec_Int_t * pKey1, Vec_Int_t * pKey2, Vec_Int_t * pPo, int skipKeyAssumption) {
     char tmpFileName[1000];
     sprintf(tmpFileName, "miterToBeReplaced.dimacs");
     int nPi = Vec_IntSize(pPi);
@@ -596,17 +646,22 @@ void Write_File_Miter_Counting_Header(char * fileName, Vec_Int_t * pPi, Vec_Int_
         fprintf(fWrite, " %i", Vec_IntEntry(pPi, i)+1);
     fprintf(fWrite, " 0\n");
     line = fgets(buff, 1000, fRead); // p cnf
-    t = strtok(buff, " \n");
-    t = strtok(NULL, " \n"); 
-    t = strtok(NULL, " \n"); 
-    nVar = atoi(t);
-    t = strtok(NULL, " \n"); 
-    nClause = atoi(t) + 2 * nKey;
-    fprintf(fWrite, "p cnf %i %i\n", nVar, nClause);
-    for(int i=0; i<nKey; i++) // key assumptions
-        fprintf(fWrite, "%i 0\n", Vec_IntEntry(pKey1, i)+1);
-    for(int i=0; i<nKey; i++)
-        fprintf(fWrite, "%i 0\n", Vec_IntEntry(pKey2, i)+1);
+    if(!skipKeyAssumption) {
+        t = strtok(buff, " \n");
+        t = strtok(NULL, " \n"); 
+        t = strtok(NULL, " \n"); 
+        nVar = atoi(t);
+        t = strtok(NULL, " \n"); 
+        nClause = atoi(t) + 2 * nKey;
+        fprintf(fWrite, "p cnf %i %i\n", nVar, nClause);
+        for(int i=0; i<nKey; i++) // key assumptions
+            fprintf(fWrite, "%i 0\n", Vec_IntEntry(pKey1, i)+1);
+        for(int i=0; i<nKey; i++)
+            fprintf(fWrite, "%i 0\n", Vec_IntEntry(pKey2, i)+1);
+    }
+    else {
+        fprintf(fWrite, "%s", buff);
+    }   
     while(fgets(buff, 1000, fRead)) {
         fprintf(fWrite, "%s", buff);
     }

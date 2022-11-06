@@ -17,7 +17,7 @@ static int Sample_MC_Command( Abc_Frame_t_ * pAbc, int argc, char ** argv )
 {
     int c            = 0;
     int fVerbose     = 0;
-    int fMiter       = 0;
+    int fMiter       = 1;
     int nKey         = 5;
 
     char *blifFileName;
@@ -58,7 +58,7 @@ static int Sample_MC_Command( Abc_Frame_t_ * pAbc, int argc, char ** argv )
     pNtk = Abc_FrameReadNtk(pAbc);
 
     if(fMiter) {
-        Sample_MC_Miter(pNtk, nKey);
+        Sample_MC_Miter(pNtk, nKey, fVerbose);
     }
     else {
         Sample_MC(pNtk, nKey);

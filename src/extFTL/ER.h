@@ -9,7 +9,7 @@ ABC_NAMESPACE_HEADER_START
 
 // ER.cpp
 extern void Sample_MC(Abc_Ntk_t * pNtk, int nKey);
-extern void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey);
+extern void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose);
 
 ABC_NAMESPACE_HEADER_END
 #endif
