@@ -46,8 +46,14 @@ static int FTL_Hybrid_Command( Abc_Frame_t_ * pAbc, int argc, char ** argv )
     }
     pNtk = Abc_FrameReadNtk(pAbc);
 
+    if ( !Abc_NtkIsStrash(pNtk) ) {
+        Abc_Ntk_t * pNtkTemp = Abc_NtkStrash( pNtk, 0, 1, 0 );
+        Abc_NtkDelete(pNtk);
+        pNtk = pNtkTemp;
+    }
+
     // main func
-    pNtkRes = FTL_Hybrid(pNtk);
+    pNtkRes = FTL_Hybrid(pNtk, fVerbose);
 
     // return
     Abc_FrameReplaceCurrentNetwork(pAbc, pNtkRes);

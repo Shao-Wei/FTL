@@ -8,7 +8,7 @@
 ABC_NAMESPACE_HEADER_START
 
 // Hybrid.cpp
-extern Abc_Ntk_t * FTL_Hybrid(Abc_Ntk_t * pNtk);
+extern Abc_Ntk_t * FTL_Hybrid(Abc_Ntk_t * pNtk, int fVerbose);
 
 ABC_NAMESPACE_HEADER_END
 #endif
