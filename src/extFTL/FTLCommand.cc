@@ -17,7 +17,6 @@ static int Sample_MC_Command( Abc_Frame_t_ * pAbc, int argc, char ** argv )
 {
     int c            = 0;
     int fVerbose     = 0;
-    int fMiter       = 1;
     int nKey         = 5;
 
     char *blifFileName;
@@ -26,13 +25,10 @@ static int Sample_MC_Command( Abc_Frame_t_ * pAbc, int argc, char ** argv )
     Abc_Ntk_t* pNtk;
         
     Extra_UtilGetoptReset();
-    while ( ( c = Extra_UtilGetopt( argc, argv, "mkvh" ) ) != EOF )
+    while ( ( c = Extra_UtilGetopt( argc, argv, "kvh" ) ) != EOF )
     {
         switch ( c )
         {            
-            case 'm':
-                fMiter ^= 1;
-                break;
             case 'k':
                 nKey = atoi(argv[globalUtilOptind]);
                 globalUtilOptind++;
@@ -57,14 +53,8 @@ static int Sample_MC_Command( Abc_Frame_t_ * pAbc, int argc, char ** argv )
     }
     pNtk = Abc_FrameReadNtk(pAbc);
 
-    if(fMiter) {
-        Sample_MC_Miter(pNtk, nKey, fVerbose);
-    }
-    else {
-        Sample_MC(pNtk, nKey);
-    }
+    Sample_MC_Miter(pNtk, nKey, fVerbose);
     
-
     return 0;
     
 usage:
