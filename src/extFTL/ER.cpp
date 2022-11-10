@@ -4,6 +4,7 @@
 #include <math.h>
 #include <vector>
 #include <stdlib.h>        // rand()
+#include <numeric>         // mean, variance
 
 /*== base/abci/abcDar.c ==*/
 extern "C" { Aig_Man_t *Abc_NtkToDar(Abc_Ntk_t *pNtk, int fExors, int fRegisters); }
@@ -21,14 +22,16 @@ Abc_Ntk_t * Sample_MC_MiterInt(Abc_Ntk_t * pNtk, int nKey);
 static void ntkMiterPrepare( Abc_Ntk_t * pNtk1, Abc_Ntk_t * pNtk2, Abc_Ntk_t * pNtkMiter, int nPi, int nKey);
 static void ntkMiterAddOne( Abc_Ntk_t * pNtk, Abc_Ntk_t * pNtkMiter);
 static void ntkMiterFinalize( Abc_Ntk_t * pNtk1, Abc_Ntk_t * pNtk2, Abc_Ntk_t * pNtkMiter);
-static void Write_File_Miter_Counting( Abc_Ntk_t * pNtkMiter, char * fileName, int nPi, int nKey, int fVerbose);
-static void Write_File_Miter_Counting_Header(char * fileName, Vec_Int_t * pPi, Vec_Int_t * pKey1, Vec_Int_t * pKey2, Vec_Int_t * pPo, int skipKeyAssumption);
-
+static int  miter_build_solver( sat_solver * pSolver, int * pVarPi, int * pVarKey, Abc_Ntk_t * pNtkMiter, int nPi, int nKey, int fVerbose);
+static void Write_Counting_Header(char * fileName, int * pVarPi, int nPi);
+static int  getCountingResult(char * fileName);
 void AddKeyInfo2CNF(char* cnfFileName, int correctKey, int wrongKey, int nKey);
 
 //// Aux ///////////////////////////////////////////////////////////////
 char * int2bitstring(int value, int length);
 
+static void sat_SolverClauseWriteDimacs( FILE * pFile, clause * pC, int fIncrement );
+static void sat_SolverWriteDimacs( sat_solver * p, char * pFileName, lit* assumpBegin, lit* assumpEnd, int incrementVars );
 void write_clause_to_file(FILE* ff, int& nClause, lit* begin, lit* end);
 int sat_solver_conditional_unequal(FILE* ff, int& nClause,  sat_solver * pSat, int iVar, int iVar2, int iVarCond );
 int sat_solver_iff_unequal(FILE* ff, int& nClause, sat_solver *pSat, int iVar, int iVar2, int iVarCond);
@@ -138,11 +141,21 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose) {
     // int fIgnoreNames = 0; // toggle ignoring names when matching CIs/COs 
 
     Abc_Ntk_t * pNtkTemp, *pNtkMiter;
-    int seed = 5;
-    int correctKey = 0;
     int nPi = Abc_NtkCiNum(pNtk);
+    int seed = 5;
+    int correctKey = 0, wrongKey, rbit;
+    int countingResult = 0;
+    int pLits[nKey + nKey]; // assertion lits
+    int cid, systemRet;
+    std::vector<int> pCountRes;
+    long long sum;
+    double mean, sq_sum, stdev;
+
+    char Command[1000];
     char miterFileName[1000];
     sprintf(miterFileName, "MITER.dimacs");
+    char countFileName[1000];
+    sprintf(countFileName, "MITER.result");
 
     // Insert keys
     insertKey(pNtk, nKey, seed, correctKey);
@@ -162,10 +175,54 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose) {
     }
 
     // Network to CNF
-    Write_File_Miter_Counting( pNtkMiter, miterFileName, nPi, nKey, fVerbose);
+    sat_solver * pSolver = sat_solver_new();
+    int * pVarPi = new int[nPi]; // stores var of Pi
+    int * pVarKey = new int[nKey + nKey]; // stores var of keys
+    cid = miter_build_solver(pSolver, pVarPi, pVarKey, pNtkMiter, nPi, nKey, fVerbose);
+    if(!cid) {
+        printf("Sample_MC_Miter: miter to CNF checking failed. Abort.\n");
+        return;
+    }
+    // Iterate through all possible keys
     
-    // Do the rest
-    
+    // Assert correct key value
+    for(int i=0; i<nKey; i++)
+        pLits[i] = Abc_Var2Lit(pVarKey[i], 1);
+    for(int k=0; k<(1 << nKey); k++ ) {
+        // Assert wrong key value
+        wrongKey = k;
+        for(int i=0; i<nKey; i++) {
+            rbit = wrongKey%2;
+            pLits[nKey+i] = Abc_Var2Lit(pVarKey[nKey+i], rbit);
+            wrongKey = wrongKey >> 1;
+        }
+        // Write to approxmc file format
+        Write_Counting_Header(miterFileName, pVarPi, nPi);
+        sat_SolverWriteDimacs(pSolver, miterFileName, pLits, pLits+nKey+nKey, 1);
+
+        // Execute approxmc
+        sprintf( Command, "./approxmc -v 0 %s >> %s", miterFileName, countFileName);
+        systemRet = system( Command );
+        if(systemRet == -1) {
+            printf("Call to approxmc failed. Abort.\n");
+        }
+        countingResult = getCountingResult(countFileName);
+
+        // Add counting result to vector
+        pCountRes.push_back(countingResult);
+    }
+
+    // Get stats
+    sum = std::accumulate(pCountRes.begin(), pCountRes.end(), 0LL);
+    mean = sum / (double)pCountRes.size();
+    sq_sum = std::inner_product(pCountRes.begin(), pCountRes.end(), pCountRes.begin(), 0.0);
+    stdev = std::sqrt(sq_sum / pCountRes.size() - mean * mean);
+    printf("Counting Stats:\n  mean  = %.3f,\n  stdev = %.3f\n", mean, stdev);
+
+    // Clean up
+    sat_solver_delete(pSolver);
+    delete [] pVarPi;
+    delete [] pVarKey;
 }
 
 // Insert XOR keys into network. Correct key combination is given through var correctKey.
@@ -508,12 +565,13 @@ void ntkMiterFinalize( Abc_Ntk_t * pNtk1, Abc_Ntk_t * pNtk2, Abc_Ntk_t * pNtkMit
     }
 }
 
-void Write_File_Miter_Counting( Abc_Ntk_t * pNtkMiter, char * fileName, int nPi, int nKey, int fVerbose) {
-    sat_solver *pSolver = sat_solver_new();
+// Push clauses of the miter into sat solver
+int miter_build_solver( sat_solver * pSolver, int * pVarPi, int * pVarKey, Abc_Ntk_t * pNtkMiter, int nPi, int nKey, int fVerbose) {
     int status;
     int cid;
     int nPo = Abc_NtkCoNum(pNtkMiter);
 
+    // Build miter into pSolver
     Vec_Int_t *pPi = Vec_IntAlloc(nPi);
     Vec_Int_t *pKey1 = Vec_IntAlloc(nKey);
     Vec_Int_t *pKey2 = Vec_IntAlloc(nKey);
@@ -561,114 +619,87 @@ void Write_File_Miter_Counting( Abc_Ntk_t * pNtkMiter, char * fileName, int nPi,
     cid = sat_solver_addclause(pSolver, pMiterLits, pMiterLits + nPo);
     assert(cid);
 
-    if(fVerbose) {
-        printf("pPi");
-        for(int i=0; i<nPi; i++) {
-            printf(" %i", Vec_IntEntry(pPi, i));
-        }
-        printf("\n");
-        printf("pKey1");
-        for(int i=0; i<nKey; i++) {
-            printf(" %i", Vec_IntEntry(pKey1, i));
-        }
-        printf("\n");
-        printf("pKey2");
-        for(int i=0; i<nKey; i++) {
-            printf(" %i", Vec_IntEntry(pKey2, i));
-        }
-        printf("\n");
-        printf("pPo");
-        for(int i=0; i<nPo; i++) {
-            printf(" %i", Vec_IntEntry(pPo, i));
-        }
-        printf("\n");
-    }
+    // Record pVarPi, pVarKey
+    for(int i=0; i<nPi; i++)
+        pVarPi[i] = Vec_IntEntry(pPi, i);
+    for(int i=0; i<nKey; i++)
+        pVarKey[i] = Vec_IntEntry(pKey1, i);
+    for(int i=0; i<nKey; i++)
+        pVarKey[nKey + i] = Vec_IntEntry(pKey2, i);
+
     /**
      * Equal Key Value Check
      * Assert key1 key2 to be the same
      * SAT solving the miter should be UNSAT
      */
     int pLits[nKey + nKey];
-    for(int i=0; i<nKey; i++) {
+    for(int i=0; i<nKey; i++)
         pLits[i] = Abc_Var2Lit(Vec_IntEntry(pKey1, i), 0);
-    }
-    for(int i=0; i<nKey; i++) {
+    for(int i=0; i<nKey; i++)
         pLits[i+nKey] = Abc_Var2Lit(Vec_IntEntry(pKey2, i), 0);
-    }
     status = sat_solver_solve(pSolver, pLits, pLits+nKey+nKey, 0, 0, 0, 0);
-    printf("Equal Key Value Check: %s\n", (status == l_False)? "pass": "fail");
-    if(status == l_True) {
-        // sat_solver_print(pSolver, 1);
-        // print assignment
-        Abc_Print( 1, "v" );
-        for (int v = 0; v < sat_solver_nvars(pSolver); v++)
-        {
-            int value = sat_solver_var_value(pSolver, v);
-            Abc_Print( 1, " %s%d", (value ? "":"-"), v );
+
+    if(fVerbose) {
+        printf("Equal Key Value Check: %s\n", (status == l_False)? "pass": "fail");
+        if(status == l_True) {
+            // print CEX
+            Abc_Print( 1, "v" );
+            for (int v = 0; v < sat_solver_nvars(pSolver); v++)
+            {
+                int value = sat_solver_var_value(pSolver, v);
+                Abc_Print( 1, " %s%d", (value ? "":"-"), v );
+            }
+            Abc_Print( 1, "\n" );
         }
-        Abc_Print( 1, "\n" );
     }
-
-    // Note: option fIncrement adds an 0 to the end of each line, and
-    // to accomplish that, every variable index is also incremented. 
-    // Thus, when writing directly to the output files ,do not forget 
-    // to increment the target variable index.
-
-    // Sat_SolverWriteDimacs(pSolver, fileName, NULL, NULL, 1);
-    // Write_File_Miter_Counting_Header(fileName, pPi, pKey1, pKey2, pPo, 0);
-    Sat_SolverWriteDimacs(pSolver, fileName, pLits, pLits+nKey+nKey, 1);
-    Write_File_Miter_Counting_Header(fileName, pPi, pKey1, pKey2, pPo, 1);
 
     // Clean up
-    sat_solver_delete(pSolver);
     Vec_IntFree(pPi);
     Vec_IntFree(pKey1);
     Vec_IntFree(pKey2);
     Vec_IntFree(pPo);
+    
+    return (status == l_False);
 }
 
-// Add header & key variable assertions to file
-void Write_File_Miter_Counting_Header(char * fileName, Vec_Int_t * pPi, Vec_Int_t * pKey1, Vec_Int_t * pKey2, Vec_Int_t * pPo, int skipKeyAssumption) {
-    char tmpFileName[1000];
-    sprintf(tmpFileName, "miterToBeReplaced.dimacs");
-    int nPi = Vec_IntSize(pPi);
-    int nKey = Vec_IntSize(pKey1);
-    int nVar, nClause;
-
-    FILE* fRead = fopen(fileName, "r");
-    FILE* fWrite = fopen(tmpFileName, "w");
-    char buff[1000];
-    char * t;
-    char * line __attribute__((unused)); // Suppress fget warnings
-
+// Add header to file
+void Write_Counting_Header(char * fileName, int * pVarPi, int nPi) {
+    FILE* fWrite = fopen(fileName, "w");
     fprintf(fWrite, "c ind"); // c ind <sampled set>
     for(int i=0; i<nPi; i++)
-        fprintf(fWrite, " %i", Vec_IntEntry(pPi, i)+1);
+        fprintf(fWrite, " %i", pVarPi[i]+1);
     fprintf(fWrite, " 0\n");
-    line = fgets(buff, 1000, fRead); // p cnf
-    if(!skipKeyAssumption) {
-        t = strtok(buff, " \n");
-        t = strtok(NULL, " \n"); 
-        t = strtok(NULL, " \n"); 
-        nVar = atoi(t);
-        t = strtok(NULL, " \n"); 
-        nClause = atoi(t) + 2 * nKey;
-        fprintf(fWrite, "p cnf %i %i\n", nVar, nClause);
-        for(int i=0; i<nKey; i++) // key assumptions
-            fprintf(fWrite, "%i 0\n", Vec_IntEntry(pKey1, i)+1);
-        for(int i=0; i<nKey; i++)
-            fprintf(fWrite, "%i 0\n", Vec_IntEntry(pKey2, i)+1);
-    }
-    else {
-        fprintf(fWrite, "%s", buff);
-    }   
-    while(fgets(buff, 1000, fRead)) {
-        fprintf(fWrite, "%s", buff);
-    }
-    fclose(fRead);
     fclose(fWrite);
-    remove(fileName);
-    rename(tmpFileName, fileName);
+}
+
+// Get counting result from approxmc log file
+int getCountingResult(char * fileName) {
+    FILE * f = fopen(fileName, "r");
+    if(f == NULL) {
+        printf("Cannot open counting result file %s. Return 0.\n", fileName);
+        return 0;
+    }
+
+    int res;
+    static const long max_len = 100; // define the max length of the line to read
+    char buff[max_len];
+    char *last_newline, *last_line;
+    char * t;
+    size_t c;
+    // Get the last line "s mc <int>"
+    fseek(f, -max_len, SEEK_END);
+    c = fread(buff, max_len-1, 1, f); // Presumably there can be more than one new line caracter
+    fclose(f);
+
+    buff[max_len-1] = '\0'; // Close the string
+    last_newline = strrchr(buff, '\n'); // Find last occurrence of newlinw
+    last_line = last_newline + 1; // jump to it
+    t = strtok(last_line, " \n");
+    t = strtok(NULL, " \n"); 
+    t = strtok(NULL, " \n"); 
+    res = atoi(t);
+
+    return res;
 }
 
 // Modify key values asserted in the CNF file.
@@ -720,6 +751,75 @@ char * int2bitstring(int value, int length) {
     }
     return one_line;
 }
+
+void sat_SolverClauseWriteDimacs( FILE * pFile, clause * pC, int fIncrement )
+{
+    int i;
+    for ( i = 0; i < (int)pC->size; i++ )
+        fprintf( pFile, "%s%d ", (lit_sign(pC->lits[i])? "-": ""),  lit_var(pC->lits[i]) + (fIncrement>0) );
+    if ( fIncrement )
+        fprintf( pFile, "0" );
+    fprintf( pFile, "\n" );
+}
+/***
+ * Identical to SAT_SolverWriteDimacs() but with fopen append mode
+ * Note: option fIncrement adds an 0 to the end of each line, and
+ * to accomplish that, every variable index is also incremented. 
+ * Thus, when writing directly to the output files, do not forget 
+ * to increment the target variable index.
+***/
+void sat_SolverWriteDimacs( sat_solver * p, char * pFileName, lit* assumpBegin, lit* assumpEnd, int incrementVars )
+{
+    Sat_Mem_t * pMem = &p->Mem;
+    FILE * pFile;
+    clause * c;
+    int i, k, nUnits;
+
+    // count the number of unit clauses
+    nUnits = 0;
+    for ( i = 0; i < p->size; i++ )
+        if ( p->levels[i] == 0 && p->assigns[i] != 3 )
+            nUnits++;
+
+    // start the file
+    pFile = pFileName ? fopen( pFileName, "a" ) : stdout;
+    if ( pFile == NULL )
+    {
+        printf( "Sat_SolverWriteDimacs(): Cannot open the ouput file.\n" );
+        return;
+    }
+//    fprintf( pFile, "c CNF generated by ABC on %s\n", Extra_TimeStamp() );
+    fprintf( pFile, "p cnf %d %d\n", p->size, Sat_MemEntryNum(&p->Mem, 0)-1+Sat_MemEntryNum(&p->Mem, 1)+nUnits+(int)(assumpEnd-assumpBegin) );
+
+    // write the original clauses
+    Sat_MemForEachClause( pMem, c, i, k )
+        sat_SolverClauseWriteDimacs( pFile, c, incrementVars );
+
+    // write the learned clauses
+//    Sat_MemForEachLearned( pMem, c, i, k )
+//        Sat_SolverClauseWriteDimacs( pFile, c, incrementVars );
+
+    // write zero-level assertions
+    for ( i = 0; i < p->size; i++ )
+        if ( p->levels[i] == 0 && p->assigns[i] != 3 ) // varX
+            fprintf( pFile, "%s%d%s\n",
+                     (p->assigns[i] == 1)? "-": "",    // var0
+                     i + (int)(incrementVars>0),
+                     (incrementVars) ? " 0" : "");
+
+    // write the assump
+    if (assumpBegin) {
+        for (; assumpBegin != assumpEnd; assumpBegin++) {
+            fprintf( pFile, "%s%d%s\n",
+                     lit_sign(*assumpBegin)? "-": "",
+                     lit_var(*assumpBegin) + (int)(incrementVars>0),
+                     (incrementVars) ? " 0" : "");
+        }
+    }
+
+    fprintf( pFile, "\n" );
+    if ( pFileName ) fclose( pFile );
+} 
 
 void write_clause_to_file(FILE* ff, int& nClause, lit* begin, lit* end)
 {
@@ -917,6 +1017,5 @@ void sat_solver_print( sat_solver* pSat, int fDimacs )
     printf( "\n" );
 
 }
-
 
 ABC_NAMESPACE_IMPL_END
