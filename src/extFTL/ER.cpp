@@ -17,7 +17,7 @@ ABC_NAMESPACE_IMPL_START
 ////////////////////////////////////////////////////////////////////////
 void insertKey(Abc_Ntk_t* pNtk, int nKey, int seed, int& correctKey);
 
-void Sample_MCInt(Abc_Ntk_t * pNtk, int nPi, int nKey, int nPo, char* cnfFileName);
+// void Sample_MCInt(Abc_Ntk_t * pNtk, int nPi, int nKey, int nPo, char* cnfFileName);
 Abc_Ntk_t * Sample_MC_MiterInt(Abc_Ntk_t * pNtk, int nKey);
 static void ntkMiterPrepare( Abc_Ntk_t * pNtk1, Abc_Ntk_t * pNtk2, Abc_Ntk_t * pNtkMiter, int nPi, int nKey);
 static void ntkMiterAddOne( Abc_Ntk_t * pNtk, Abc_Ntk_t * pNtkMiter);
@@ -25,7 +25,7 @@ static void ntkMiterFinalize( Abc_Ntk_t * pNtk1, Abc_Ntk_t * pNtk2, Abc_Ntk_t * 
 static int  miter_build_solver( sat_solver * pSolver, int * pVarPi, int * pVarKey, Abc_Ntk_t * pNtkMiter, int nPi, int nKey, int fVerbose);
 static void Write_Counting_Header(char * fileName, int * pVarPi, int nPi);
 static int  getCountingResult(char * fileName);
-void AddKeyInfo2CNF(char* cnfFileName, int correctKey, int wrongKey, int nKey);
+// void AddKeyInfo2CNF(char* cnfFileName, int correctKey, int wrongKey, int nKey);
 
 //// Aux ///////////////////////////////////////////////////////////////
 char * int2bitstring(int value, int length);
@@ -67,7 +67,7 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose) {
     // int fTrans       = 0; // toggle XORing pair-wise POs of the miter
     // int fIgnoreNames = 0; // toggle ignoring names when matching CIs/COs 
 
-    Abc_Ntk_t * pNtkTemp, *pNtkMiter;
+    Abc_Ntk_t * pNtkSt, *pNtkMiter;
     int nPi = Abc_NtkCiNum(pNtk);
     int seed = 5;
     int correctKey = 0, wrongKey, rbit;
@@ -88,14 +88,10 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose) {
     insertKey(pNtk, nKey, seed, correctKey);
 
     // Make sure network is strashed
-    if ( !Abc_NtkIsStrash(pNtk) ) {
-        pNtkTemp = Abc_NtkStrash( pNtk, 0, 1, 0 );
-        Abc_NtkDelete(pNtk);
-        pNtk = pNtkTemp;
-    }
+    pNtkSt = Abc_NtkStrash( pNtk, 0, 1, 0 );
 
     // Compute the miter
-    pNtkMiter = Sample_MC_MiterInt(pNtk, nKey);
+    pNtkMiter = Sample_MC_MiterInt(pNtkSt, nKey);
     if( pNtkMiter == NULL ) {
         Abc_Print( -1, "Miter computation has failed.\n" );
         return;
