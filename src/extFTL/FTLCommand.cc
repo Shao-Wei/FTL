@@ -67,10 +67,45 @@ usage:
     return 1;   
 }
 
+static int MPZ_Test_Command( Abc_Frame_t_ * pAbc, int argc, char ** argv )
+{
+    int c            = 0;
+    int fVerbose     = 0;
+        
+    Extra_UtilGetoptReset();
+    while ( ( c = Extra_UtilGetopt( argc, argv, "vh" ) ) != EOF )
+    {
+        switch ( c )
+        {            
+            case 'v':
+                fVerbose ^= 1;
+                break;
+            case 'h':
+                goto usage;
+            default:
+                goto usage;
+        }
+    }
+    if ( argc != globalUtilOptind) 
+        goto usage;
+    
+    ER_mpz_test();
+    
+    return 0;
+    
+usage:
+    Abc_Print( -2, "usage: mpz_test\n" );
+    Abc_Print( -2, "\t              Testing command for mpz class\n" );
+    Abc_Print( -2, "\t-v            : verbosity [default = %d]\n", fVerbose );
+    Abc_Print( -2, "\t-h            : print the command usage\n" );
+    return 1;   
+}
+
 // called during ABC startup
 static void init(Abc_Frame_t* pAbc)
 { 
     Cmd_CommandAdd( pAbc, "FTL", "sampleMC", Sample_MC_Command, 1);
+    Cmd_CommandAdd( pAbc, "FTL", "mpz_test", MPZ_Test_Command, 1);
 }
 
 // called during ABC termination

@@ -24,7 +24,7 @@ static void ntkMiterAddOne( Abc_Ntk_t * pNtk, Abc_Ntk_t * pNtkMiter);
 static void ntkMiterFinalize( Abc_Ntk_t * pNtk1, Abc_Ntk_t * pNtk2, Abc_Ntk_t * pNtkMiter);
 static int  miter_build_solver( sat_solver * pSolver, int * pVarPi, int * pVarKey, Abc_Ntk_t * pNtkMiter, int nPi, int nKey, int fVerbose);
 static void Write_Counting_Header(char * fileName, int * pVarPi, int nPi);
-static int  getCountingResult(char * fileName);
+static char * getCountingResult(char * fileName);
 // void AddKeyInfo2CNF(char* cnfFileName, int correctKey, int wrongKey, int nKey);
 
 //// Aux ///////////////////////////////////////////////////////////////
@@ -71,18 +71,16 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose) {
     int nPi = Abc_NtkCiNum(pNtk);
     int seed = 5;
     int correctKey = 0, wrongKey, rbit;
-    int countingResult = 0;
     int pLits[nKey + nKey]; // assertion lits
     int cid, systemRet;
-    std::vector<int> pCountRes;
-    long long sum;
-    double mean, sq_sum, stdev;
 
     char Command[1000];
     char miterFileName[1000];
     sprintf(miterFileName, "MITER.dimacs");
     char countFileName[1000];
     sprintf(countFileName, "MITER.result");
+
+    ER_Man_t * pERMan = ER_ManStart();
 
     // Insert keys
     insertKey(pNtk, nKey, seed, correctKey);
@@ -129,20 +127,16 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose) {
         if(systemRet == -1) {
             printf("Call to approxmc failed. Abort.\n");
         }
-        countingResult = getCountingResult(countFileName);
 
-        // Add counting result to vector
-        pCountRes.push_back(countingResult);
+        ER_CountPush(pERMan, getCountingResult(countFileName));
     }
 
     // Get stats
-    sum = std::accumulate(pCountRes.begin(), pCountRes.end(), 0LL);
-    mean = sum / (double)pCountRes.size();
-    sq_sum = std::inner_product(pCountRes.begin(), pCountRes.end(), pCountRes.begin(), 0.0);
-    stdev = std::sqrt(sq_sum / pCountRes.size() - mean * mean);
-    printf("Counting Stats:\n  mean  = %.3f,\n  stdev = %.3f\n", mean, stdev);
+    ER_GetStats(pERMan);
+    ER_PrintStats(pERMan);
 
     // Clean up
+    ER_ManStop(pERMan);
     sat_solver_delete(pSolver);
     delete [] pVarPi;
     delete [] pVarKey;
@@ -410,14 +404,13 @@ void Write_Counting_Header(char * fileName, int * pVarPi, int nPi) {
 }
 
 // Get counting result from approxmc log file
-int getCountingResult(char * fileName) {
+char * getCountingResult(char * fileName) {
     FILE * f = fopen(fileName, "r");
     if(f == NULL) {
         printf("Cannot open counting result file %s. Return 0.\n", fileName);
         return 0;
     }
 
-    int res;
     static const long max_len = 100; // define the max length of the line to read
     char buff[max_len];
     char *last_newline, *last_line;
@@ -434,9 +427,8 @@ int getCountingResult(char * fileName) {
     t = strtok(last_line, " \n");
     t = strtok(NULL, " \n"); 
     t = strtok(NULL, " \n"); 
-    res = atoi(t);
 
-    return res;
+    return t;
 }
 
 ////////////////////////////////////////////////////////////////////////
