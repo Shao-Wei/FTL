@@ -130,7 +130,7 @@ void ER_PrintVCount( ER_Man_t * p ) {
 
 ***********************************************************************/
 void ER_PrintStats ( ER_Man_t * p ) {
-    printf("ER Man Stats:\n");
+    printf("\n# ER Man Stats:\n");
     printf("  - Number of counts = %i\n", p->vCountSize);
     printf("  - Mean = %.3f%% ( ", getPercentage(p->mean, p->nPi)); mpz_out_str(stdout, 10, p->mean); printf(" over 2^%i)\n", p->nPi);
     printf("  - Stdev = %.3f%% ( ", getPercentage(p->stdev, p->nPi)); mpz_out_str(stdout, 10, p->stdev); printf(" over 2^%i)\n", p->nPi);

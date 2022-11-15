@@ -16,6 +16,7 @@ ABC_NAMESPACE_IMPL_START
 ///                        DECLARATIONS                              ///
 ////////////////////////////////////////////////////////////////////////
 void insertKey(Abc_Ntk_t* pNtk, int nKey, int seed, int& correctKey);
+static int checkLockedCircuit(Abc_Ntk_t * pNtk);
 
 // void Sample_MCInt(Abc_Ntk_t * pNtk, int nPi, int nKey, int nPo, char* cnfFileName);
 Abc_Ntk_t * Sample_MC_MiterInt(Abc_Ntk_t * pNtk, int nKey);
@@ -58,7 +59,7 @@ void sat_solver_print( sat_solver* pSat, int fDimacs );
   SeeAlso     []
 
 ***********************************************************************/
-void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose) {
+void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose, int fLocked) {
     // int fComb        = 1; // toggles deriving combinational miter
     // int fCheck       = 1; // toggles network check, should always be true
     // int fImplic      = 0; // toggles deriving implication miter
@@ -71,8 +72,9 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose) {
     int nPi = Abc_NtkCiNum(pNtk);
     int seed = 5;
     int correctKey = 0, wrongKey, numKey = 0, rbit;
-    int pLits[nKey + nKey]; // assertion lits
+    int * pLits; // assertion lits
     int cid, systemRet;
+    char * sCount;
 
     char Command[1000];
     char miterFileName[1000];
@@ -82,8 +84,33 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose) {
 
     ER_Man_t * pERMan = ER_ManStart(nPi, nKey);
 
-    // Insert keys
-    insertKey(pNtk, nKey, seed, correctKey);
+    // Insert keys 
+    if(!fLocked) {
+        // nKey
+        nPi = Abc_NtkCiNum(pNtk);
+        pLits = new int[nKey + nKey];
+
+        insertKey(pNtk, nKey, seed, correctKey);
+    }
+    else {
+        nKey = fLocked;
+        nPi = Abc_NtkCiNum(pNtk) - nKey;
+        pLits = new int[nKey + nKey];
+
+        cid = checkLockedCircuit(pNtk);
+        if(!cid) {
+            printf("Sample_MC_Miter: locked circuit check failed. Abort.\n");
+            ER_ManStop(pERMan);
+            return;
+        }
+    }
+
+    if(fVerbose) {
+        printf("\n# Key Inserted Circuit Info:\n");
+        printf("  - nPi  = %i\n", nPi);
+        printf("  - nKey = %i\n", nKey);
+        Abc_NtkPrintStats(pNtk, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    }
 
     // Make sure network is strashed
     pNtkSt = Abc_NtkStrash( pNtk, 0, 1, 0 );
@@ -92,7 +119,12 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose) {
     pNtkMiter = Sample_MC_MiterInt(pNtkSt, nKey);
     if( pNtkMiter == NULL ) {
         Abc_Print( -1, "Miter computation has failed.\n" );
+        ER_ManStop(pERMan);
         return;
+    }
+    if(fVerbose) {
+        printf("\n# Miter Info:\n");
+        Abc_NtkPrintStats(pNtkMiter, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     }
 
     // Network to CNF
@@ -130,7 +162,10 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose) {
             printf("Call to approxmc failed. Abort.\n");
         }
 
-        ER_AddCount(pERMan, numKey, getCountingResult(countFileName));
+        sCount = getCountingResult(countFileName);
+        if(fVerbose)
+            printf("Counting result %i - %s\n", k, sCount);
+        ER_AddCount(pERMan, numKey, sCount);
         numKey++;
     }
 
@@ -140,6 +175,7 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose) {
     ER_PrintStats(pERMan);
 
     // Clean up
+    delete [] pLits;
     ER_ManStop(pERMan);
     sat_solver_delete(pSolver);
     delete [] pVarPi;
@@ -189,6 +225,15 @@ void insertKey(Abc_Ntk_t* pNtk, int nKey, int seed, int& correctKey) {
     correctKey = 0;
 }
 
+// check input order. Inserted key bits should be appended to the original primary inputs
+int checkLockedCircuit(Abc_Ntk_t * pNtk) {
+    // Abc_Obj_t * pObj;
+    // int i;
+    // Abc_NtkForEachCi(pNtk, pObj, i)
+    //     printf("  %s\n", Abc_ObjName(pObj));
+    return 1;
+}
+
 // Construct general miter network of the key inserted pNtk 
 Abc_Ntk_t * Sample_MC_MiterInt(Abc_Ntk_t * pNtk, int nKey) {
     char buf[1000];
@@ -216,8 +261,6 @@ Abc_Ntk_t * Sample_MC_MiterInt(Abc_Ntk_t * pNtk, int nKey) {
         Abc_NtkDelete( pNtkMiter );
         return NULL;
     }
-
-    Abc_NtkPrintStats(pNtkMiter, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
 // Debug
 //    Abc_Obj_t * pObj; 
