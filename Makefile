@@ -150,11 +150,13 @@ ifdef ABC_USE_LIBSTDCXX
    $(info $(MSG_PREFIX)Using explicit -lstdc++)
 endif
 
-# whether to support GMP library with linkage -lgmp
-ifdef ABC_USE_LIBGMP
-  LIBS += -lgmp
-  $(info $(MSG_PREFIX)Using -lgmp)
-endif  
+# # Support GMP library with linkage -lgmp
+# ifdef ABC_USE_LIBGMP
+#   LIBS += -lgmp
+#   $(info $(MSG_PREFIX)Using -lgmp)
+# endif  
+LIBS += -lgmp
+$(info $(MSG_PREFIX)Using -lgmp (extFTL))
 
 $(info $(MSG_PREFIX)Using CFLAGS=$(CFLAGS))
 CXXFLAGS += $(CFLAGS)
