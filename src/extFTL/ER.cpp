@@ -70,7 +70,7 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose) {
     Abc_Ntk_t * pNtkSt, *pNtkMiter;
     int nPi = Abc_NtkCiNum(pNtk);
     int seed = 5;
-    int correctKey = 0, wrongKey, rbit;
+    int correctKey = 0, wrongKey, numKey = 0, rbit;
     int pLits[nKey + nKey]; // assertion lits
     int cid, systemRet;
 
@@ -80,7 +80,7 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose) {
     char countFileName[1000];
     sprintf(countFileName, "MITER.result");
 
-    ER_Man_t * pERMan = ER_ManStart();
+    ER_Man_t * pERMan = ER_ManStart(nKey);
 
     // Insert keys
     insertKey(pNtk, nKey, seed, correctKey);
@@ -107,14 +107,16 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose) {
     // Iterate through all possible keys
     
     // Assert correct key value
-    for(int i=0; i<nKey; i++)
+    for(int i=0; i<nKey; i++) // correct key = 0x0
         pLits[i] = Abc_Var2Lit(pVarKey[i], 1);
     for(int k=0; k<(1 << nKey); k++ ) {
         // Assert wrong key value
         wrongKey = k;
+        if(wrongKey == correctKey)
+            continue;
         for(int i=0; i<nKey; i++) {
             rbit = wrongKey%2;
-            pLits[nKey+i] = Abc_Var2Lit(pVarKey[nKey+i], rbit);
+            pLits[nKey+i] = (rbit)? Abc_Var2Lit(pVarKey[nKey+i], 0): Abc_Var2Lit(pVarKey[nKey+i], 1);
             wrongKey = wrongKey >> 1;
         }
         // Write to approxmc file format
@@ -128,10 +130,12 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose) {
             printf("Call to approxmc failed. Abort.\n");
         }
 
-        ER_CountPush(pERMan, getCountingResult(countFileName));
+        ER_AddCount(pERMan, numKey, getCountingResult(countFileName));
+        numKey++;
     }
 
     // Get stats
+// ER_PrintVCount(pERMan);
     ER_GetStats(pERMan);
     ER_PrintStats(pERMan);
 

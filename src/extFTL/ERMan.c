@@ -2,9 +2,6 @@
 
 ABC_NAMESPACE_IMPL_START
 
-static void calMean(mpz_t ret, Vec_Ptr_t * v);
-static void calStdev(mpz_t ret, Vec_Ptr_t * v);
-
 /**Function*************************************************************
 
   Synopsis    [Start ER manager.]
@@ -16,15 +13,17 @@ static void calStdev(mpz_t ret, Vec_Ptr_t * v);
   SeeAlso     []
 
 ***********************************************************************/
-ER_Man_t * ER_ManStart() {
+ER_Man_t * ER_ManStart(int nKey) {
     ER_Man_t * p;
     p = ABC_ALLOC( ER_Man_t, 1);
     memset( p, 0, sizeof(ER_Man_t) );
 
-    p->vCount = Vec_PtrAlloc(0);
+    p->vCountSize = (1<<nKey) - 1;
+    p->vCount = malloc(p->vCountSize * sizeof(mpz_t));
+    for(int i=0; i<p->vCountSize; i++) 
+        mpz_init(p->vCount[i]);
     mpz_init(p->mean);
     mpz_init(p->stdev);
-
     return p;
 }
 
@@ -40,9 +39,9 @@ ER_Man_t * ER_ManStart() {
 
 ***********************************************************************/
 void ER_ManStop( ER_Man_t * p ) {
-    // for(int i=0; i<Vec_PtrSize(p->vCount); i++)
-    //     mpz_clear(Vec_PtrGetEntry(p->vCount, i));
-    Vec_PtrFree(p->vCount);
+    for(int i=0; i<p->vCountSize; i++) 
+        mpz_clear(p->vCount[i]);
+    free(p->vCount);
     mpz_clear(p->mean);
     mpz_clear(p->stdev);
     ABC_FREE( p );
@@ -60,16 +59,14 @@ void ER_ManStop( ER_Man_t * p ) {
 
 ***********************************************************************/
 
-void ER_CountPush( ER_Man_t * p, char * c) {
-    mpz_t num;
-    mpz_init_set_str(num, c,10);
-    mpz_out_str(stdout, 10, num); // Good til here
-    Vec_PtrPush(p->vCount, num);
+void ER_AddCount( ER_Man_t * p, int idx, char * c) {
+    if(idx >= 0 && idx < p->vCountSize)
+        mpz_set_str(p->vCount[idx], c, 10);
 }
 
 /**Function*************************************************************
 
-  Synopsis    [Get mean & stdev values for vCount]
+  Synopsis    [ Get mean & stdev values for vCount. ]
 
   Description []
                
@@ -79,17 +76,39 @@ void ER_CountPush( ER_Man_t * p, char * c) {
 
 ***********************************************************************/
 void ER_GetStats( ER_Man_t * p) {
+    // Cal mean
+    mpz_init_set_si(p->mean, 0);
+    for(int i=0; i<p->vCountSize; i++)
+        mpz_add(p->mean, p->mean, p->vCount[i]);
+    mpz_cdiv_q_ui(p->mean, p->mean, p->vCountSize);
 
-    // Print all
-    printf("Array of number given:\n");
-    for(int i=0; i<Vec_PtrSize(p->vCount); i++) {
+    // Cal stdev
+    mpz_init_set_si(p->stdev, 0);
+    for(int i=0; i<p->vCountSize; i++)
+        mpz_addmul(p->stdev, p->vCount[i], p->vCount[i]);
+    mpz_cdiv_q_ui(p->stdev, p->stdev, p->vCountSize);
+    mpz_submul(p->stdev, p->mean, p->mean);
+    mpz_sqrt(p->stdev, p->stdev);
+}
+
+/**Function*************************************************************
+
+  Synopsis    [ Print all entries in vCount. ]
+
+  Description []
+               
+  SideEffects []
+
+  SeeAlso     []
+
+***********************************************************************/
+void ER_PrintVCount( ER_Man_t * p ) {
+    printf("vCount:\n");
+    for(int i=0; i<p->vCountSize; i++) {
         printf("  ");
-        mpz_out_str(stdout, 10, Vec_PtrGetEntry(p->vCount, i));
+        mpz_out_str(stdout, 10, p->vCount[i]);
         printf("\n");
     }
-
-    calMean(p->mean, p->vCount);
-    calStdev(p->stdev, p->vCount);
 }
 
 /**Function*************************************************************
@@ -105,83 +124,9 @@ void ER_GetStats( ER_Man_t * p) {
 ***********************************************************************/
 void ER_PrintStats ( ER_Man_t * p ) {
     printf("ER Man Stats:\n");
-    printf("  - Number of counts = %i\n", Vec_PtrSize(p->vCount));
+    printf("  - Number of counts = %i\n", p->vCountSize);
     printf("  - Mean = "); mpz_out_str(stdout, 10, p->mean); printf("\n");
     printf("  - Stdev = "); mpz_out_str(stdout, 10, p->stdev); printf("\n");
-}
-
-/**Function*************************************************************
-
-  Synopsis    [Testing function for mpz_class usage.]
-
-  Description []
-               
-  SideEffects []
-
-  SeeAlso     []
-
-***********************************************************************/
-void ER_mpz_test() {
-    mpz_t c1, c2;
-    mpz_t mean, stdev;
-    Vec_Ptr_t * vCount = Vec_PtrAlloc(0);
-    
-    mpz_init_set_str(c1, "150000000000000", 10);
-    mpz_init_set_str(c2, "870000000000001", 10);
-    mpz_init_set_ui(mean, 0);
-
-    Vec_PtrPush(vCount, c1);
-    Vec_PtrPush(vCount, c2);
-
-    // Print all
-    printf("Array of number given:\n");
-    for(int i=0; i<Vec_PtrSize(vCount); i++) {
-        printf("  ");
-        mpz_out_str(stdout, 10, Vec_PtrGetEntry(vCount, i));
-        printf("\n");
-    }
-    
-    calMean(mean, vCount);
-    printf("- Mean = ");
-    mpz_out_str(stdout, 10, mean);
-    printf("\n");
-
-    calStdev(stdev, vCount);
-    printf("- Stdev = ");
-    mpz_out_str(stdout, 10, stdev);
-    printf("\n");
-    
-    // cleanup
-    mpz_clear(c1);
-    mpz_clear(c2);
-    mpz_clear(mean);
-}
-
-void calMean(mpz_t ret, Vec_Ptr_t * v) {
-    // Init to 0
-    mpz_init_set_si(ret, 0);
-
-    // Sum and divide
-    for(int i=0; i<Vec_PtrSize(v); i++)
-        mpz_add(ret, ret, Vec_PtrEntry(v, i));
-    mpz_cdiv_q_ui(ret, ret, Vec_PtrSize(v));
-}
-
-void calStdev(mpz_t ret, Vec_Ptr_t * v) {
-    mpz_t mean;
-    // Init to 0
-    mpz_init_set_si(mean, 0);
-    mpz_init_set_si(ret, 0);
-
-    // Get mean
-    calMean(mean, v);
-
-    // Sum and divide
-    for(int i=0; i<Vec_PtrSize(v); i++)
-        mpz_addmul(ret, Vec_PtrEntry(v, i), Vec_PtrEntry(v, i));
-    mpz_cdiv_q_ui(ret, ret, Vec_PtrSize(v));
-    mpz_submul(ret, mean, mean);
-    mpz_sqrt(ret, ret);
 }
 
 ABC_NAMESPACE_IMPL_END
