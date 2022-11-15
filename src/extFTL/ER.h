@@ -18,13 +18,17 @@ typedef struct ER_Man_t_ ER_Man_t;
 struct ER_Man_t_
 {
     mpz_t * vCount; 
+    int nPi;
+    int nKey;
     int vCountSize;
+
+    // Stats
     mpz_t mean;
     mpz_t stdev;
 };
 
 // ERMan.c --------------------
-extern ER_Man_t *      ER_ManStart( int nKey );
+extern ER_Man_t *      ER_ManStart(int nPi, int nKey);
 extern void            ER_ManStop( ER_Man_t * p );
 
 extern void            ER_AddCount( ER_Man_t * p, int idx, char * c);

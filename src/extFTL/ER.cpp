@@ -80,7 +80,7 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose) {
     char countFileName[1000];
     sprintf(countFileName, "MITER.result");
 
-    ER_Man_t * pERMan = ER_ManStart(nKey);
+    ER_Man_t * pERMan = ER_ManStart(nPi, nKey);
 
     // Insert keys
     insertKey(pNtk, nKey, seed, correctKey);
