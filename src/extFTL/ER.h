@@ -38,7 +38,7 @@ extern void            ER_PrintStats ( ER_Man_t * p );
 extern void            ER_PrintVCount( ER_Man_t * p );
 
 // ER.cpp --------------------
-extern void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose, int fLocked);
+extern void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose, int fLocked, int fGenMiter);
 
 ABC_NAMESPACE_HEADER_END
 #endif

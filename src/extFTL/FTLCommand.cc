@@ -19,6 +19,7 @@ static int Sample_MC_Command( Abc_Frame_t_ * pAbc, int argc, char ** argv )
     int fVerbose     = 0;
     int nKey         = 5;
     int fLocked      = 0;
+    int fGenMiter    = 0;
 
     char *blifFileName;
     char Command[1000];
@@ -26,10 +27,13 @@ static int Sample_MC_Command( Abc_Frame_t_ * pAbc, int argc, char ** argv )
     Abc_Ntk_t* pNtk;
         
     Extra_UtilGetoptReset();
-    while ( ( c = Extra_UtilGetopt( argc, argv, "klvh" ) ) != EOF )
+    while ( ( c = Extra_UtilGetopt( argc, argv, "mklvh" ) ) != EOF )
     {
         switch ( c )
         {            
+            case 'm':
+                fGenMiter ^= 1;
+                break;
             case 'k':
                 nKey = atoi(argv[globalUtilOptind]);
                 globalUtilOptind++;
@@ -58,7 +62,7 @@ static int Sample_MC_Command( Abc_Frame_t_ * pAbc, int argc, char ** argv )
     }
     pNtk = Abc_FrameReadNtk(pAbc);
 
-    Sample_MC_Miter(pNtk, nKey, fVerbose, fLocked);
+    Sample_MC_Miter(pNtk, nKey, fVerbose, fLocked, fGenMiter);
     
     return 0;
     
@@ -69,6 +73,7 @@ usage:
     Abc_Print( -2, "\t-k <int>      : number of keys inserted [default = %d]\n", nKey );
     Abc_Print( -2, "\t-l <int>      : provide number of bits inserted to the locked circuit [default = %d]\n", nKey );
     Abc_Print( -2, "\t                (the inserted key bits need to be appended to the original primary inputs\n");
+    Abc_Print( -2, "\t-m            : generate cnf file of the miter of a random key, no counting is performed [default = %d]\n", fGenMiter);
     Abc_Print( -2, "\t-v            : verbosity [default = %d]\n", fVerbose );
     Abc_Print( -2, "\t-h            : print the command usage\n" );
     return 1;   

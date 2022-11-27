@@ -59,7 +59,7 @@ void sat_solver_print( sat_solver* pSat, int fDimacs );
   SeeAlso     []
 
 ***********************************************************************/
-void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose, int fLocked) {
+void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose, int fLocked, int fGenMiter) {
     // int fComb        = 1; // toggles deriving combinational miter
     // int fCheck       = 1; // toggles network check, should always be true
     // int fImplic      = 0; // toggles deriving implication miter
@@ -155,6 +155,10 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose, int fLocked) {
         Write_Counting_Header(miterFileName, pVarPi, nPi);
         sat_SolverWriteDimacs(pSolver, miterFileName, pLits, pLits+nKey+nKey, 1);
 
+        if(fGenMiter) { // exit immediately if fGenMiter is true
+            break;
+        }
+
         // Execute approxmc
         sprintf( Command, "./approxmc -v 0 %s >> %s", miterFileName, countFileName);
         systemRet = system( Command );
@@ -170,9 +174,11 @@ void Sample_MC_Miter(Abc_Ntk_t * pNtk, int nKey, int fVerbose, int fLocked) {
     }
 
     // Get stats
-// ER_PrintVCount(pERMan);
-    ER_GetStats(pERMan);
-    ER_PrintStats(pERMan);
+    if(!fGenMiter) {
+        // ER_PrintVCount(pERMan);
+        ER_GetStats(pERMan);
+        ER_PrintStats(pERMan);
+    }
 
     // Clean up
     delete [] pLits;
