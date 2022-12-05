@@ -17,8 +17,6 @@ static int FTL_Hybrid_Command( Abc_Frame_t_ * pAbc, int argc, char ** argv )
     int c            = 0;
     int fVerbose     = 0;
 
-    char *blifFileName;
-    char Command[1000];
     Abc_Ntk_t *pNtk, *pNtkRes;
         
     Extra_UtilGetoptReset();
@@ -35,16 +33,11 @@ static int FTL_Hybrid_Command( Abc_Frame_t_ * pAbc, int argc, char ** argv )
                 goto usage;
         }
     }
-    if ( argc != globalUtilOptind + 1) 
-        goto usage;
-    blifFileName = argv[globalUtilOptind];
-    sprintf( Command, "read %s", blifFileName);
-    if(Cmd_CommandExecute(pAbc,Command))
-    {
-        printf("Cannot read %s\n", blifFileName);
-        return 1;
-    }
     pNtk = Abc_FrameReadNtk(pAbc);
+    if(pNtk == NULL)
+    {
+        printf("Error: Empty network.\n");
+    }
 
     if ( !Abc_NtkIsStrash(pNtk) ) {
         Abc_Ntk_t * pNtkTemp = Abc_NtkStrash( pNtk, 0, 1, 0 );
@@ -56,13 +49,13 @@ static int FTL_Hybrid_Command( Abc_Frame_t_ * pAbc, int argc, char ** argv )
     pNtkRes = FTL_Hybrid(pNtk, fVerbose);
 
     // return
-    Abc_FrameReplaceCurrentNetwork(pAbc, pNtkRes);
+    // BUG - error in Abc_NtkDelete(), double free? unresolved marks?
+    // Abc_FrameReplaceCurrentNetwork(pAbc, pNtkRes);
     return 0;
     
 usage:
-    Abc_Print( -2, "usage: ftl_hybrid <blif>\n" );
+    Abc_Print( -2, "usage: ftl_hybrid\n" );
     Abc_Print( -2, "\t              Hybridize network by replacing subcircuit with FTL blocks\n" );
-    Abc_Print( -2, "\t<blif>        : network to be hybridized\n" );
     Abc_Print( -2, "\t-v            : verbosity [default = %d]\n", fVerbose );
     Abc_Print( -2, "\t-h            : print the command usage\n" );
     return 1;   
