@@ -45,7 +45,7 @@ extern void             Hyb_ManStop( Hyb_Man_t * p );
 extern void             Hyb_ManPrintStats ( Hyb_Man_t * p );
 
 // hybEva.c
-extern void             Hyb_PoCollectCand( Hyb_Man_t * p, Cut_Man_t * pManCut, int fVerbose );
+extern void             Hyb_PoCollectCand( Hyb_Man_t * p, int fVerbose );
 
 
 ABC_NAMESPACE_HEADER_END

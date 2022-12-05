@@ -16,13 +16,15 @@ static int test_threshold(Hyb_Man_t * p, int nVar, unsigned uTruth);
   SideEffects []
   SeeAlso     []
 ***********************************************************************/
-void Hyb_PoCollectCand( Hyb_Man_t * p, Cut_Man_t * pManCut, int fVerbose ) {
+void Hyb_PoCollectCand( Hyb_Man_t * p, int fVerbose ) {
+    Cut_Man_t * pManCut;
     Cut_Cut_t * pCut;
     Abc_Obj_t * pPo, *pNode; // Fanin 0 of PO
     Abc_Obj_t * pFanin;
     unsigned uTruth;
     int n, i;
 
+    pManCut = p->pNtk->pManCut;
     Abc_NtkForEachPo(p->pNtk, pPo, n) {
         pNode = Abc_ObjFanin0(pPo);
 

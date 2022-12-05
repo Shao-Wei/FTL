@@ -37,6 +37,7 @@ Hyb_Man_t * Hyb_ManStart(Abc_Ntk_t * pNtk, int fVerbose) {
     p->nTravIds = 1;
     p->vFaninsCur = Vec_PtrAlloc( 50 );
 
+    // cut stats
     p->nCutsGood = ABC_ALLOC(int, Abc_NtkPoNum(pNtk));
     p->nCutsBad  = ABC_ALLOC(int, Abc_NtkPoNum(pNtk));
     p->nCuts2    = ABC_ALLOC(int, Abc_NtkPoNum(pNtk));

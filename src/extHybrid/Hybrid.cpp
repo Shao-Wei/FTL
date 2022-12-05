@@ -44,7 +44,7 @@ Abc_Ntk_t * FTL_Hybrid(Abc_Ntk_t * pNtk, int fVerbose) {
     pManCut = ntkStartCutManForHybrid( pNtk );
     pNtk->pManCut = pManCut;    
 
-    Hyb_PoCollectCand( pManHyb, pManCut, fVerbose);
+    Hyb_PoCollectCand( pManHyb, fVerbose);
 
     // print stats
     if(fVerbose)
