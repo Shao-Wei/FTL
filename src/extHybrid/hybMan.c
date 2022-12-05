@@ -3,6 +3,7 @@
 #include "base/main/main.h"
 #include "bool/dec/dec.h"
 #include <sys/types.h> // ssize_t
+#include <math.h> // sqrt
 
 ABC_NAMESPACE_IMPL_START
 
@@ -156,8 +157,93 @@ void Hyb_ManStop( Hyb_Man_t * p ) {
 
 ***********************************************************************/
 void Hyb_ManPrintStats ( Hyb_Man_t * p ) {
-  int i, n = Abc_NtkPoNum(p->pNtk);
-  printf("Hybridization stats:");
+  int c, i, n = Abc_NtkPoNum(p->pNtk);
+  int nAcc3[n], nAcc4[n], nAcc5[n]; // accumulated counts of threshold functions til n-cut
+  int nHyb3, nHyb4, nHyb5; // number of po hybridized
+  double nAvg3, nAvg4, nAvg5; // mean over all po
+  double nAvgV3, nAvgV4, nAvgV5; // mean over po that are hybridized
+  double nStd3, nStd4, nStd5; // stdiv over all po
+  double nStdV3, nStdV4, nStdV5; // stdiv over po that are hybridized
+
+  // get accumulated arrays
+  for(i=0; i<n; i++) {
+    c = p->nCuts2[i];
+    nAcc3[i] = c; nAcc4[i] = c; nAcc5[i] = c;    
+  }
+  for(i=0; i<n; i++) {
+    c = p->nCuts3[i];
+    nAcc3[i] += c; nAcc4[i] += c; nAcc5[i] += c;    
+  }
+  for(i=0; i<n; i++) {
+    c = p->nCuts4[i];
+    nAcc4[i] += c; nAcc5[i] += c;    
+  }
+  for(i=0; i<n; i++) {
+    c = p->nCuts5[i];
+    nAcc5[i] += c;    
+  }
+  // nPo hybridized
+  nHyb3 = nHyb4 = nHyb5 = 0;
+  for(i=0; i<n; i++) {
+    if(nAcc3[i] > 0)
+      nHyb3++;
+    if(nAcc4[i] > 0)
+      nHyb4++;
+    if(nAcc5[i] > 0)
+      nHyb5++;
+  }
+
+  // mean
+  nAvg3 = nAvg4 = nAvg5 = 0;
+  for(i=0; i<n; i++) {
+    nAvg3 += nAcc3[i];
+    nAvg4 += nAcc4[i];
+    nAvg5 += nAcc5[i];
+  }
+  nAvg3 = nAvg3 / (double)n;
+  nAvg4 = nAvg4 / (double)n;
+  nAvg5 = nAvg5 / (double)n;
+
+  nAvgV3 = nAvgV4 = nAvgV5 = 0.0;
+  for(i=0; i<n; i++) {
+    nAvgV3 += (nAcc3[i] > 0)? nAcc3[i]: 0;
+    nAvgV4 += (nAcc4[i] > 0)? nAcc4[i]: 0;
+    nAvgV5 += (nAcc5[i] > 0)? nAcc5[i]: 0;
+  }
+  nAvgV3 = nAvgV3 / (double)nHyb3;
+  nAvgV4 = nAvgV4 / (double)nHyb4;
+  nAvgV5 = nAvgV5 / (double)nHyb5;
+  // stdiv
+  nStd3 = nStd4 = nStd5 = 0.0;
+  for(i=0; i<n; i++) {
+    nStd3 += (nAcc3[i]-nAvg3) * (nAcc3[i]-nAvg3);
+    nStd4 += (nAcc4[i]-nAvg4) * (nAcc4[i]-nAvg4);
+    nStd5 += (nAcc5[i]-nAvg5) * (nAcc5[i]-nAvg5);
+  }
+  nStd3 = sqrt(nStd3 / (double)n);
+  nStd4 = sqrt(nStd4 / (double)n);
+  nStd5 = sqrt(nStd5 / (double)n);
+
+  nStdV3 = nStdV4 = nStdV5 = 0.0;
+  for(i=0; i<n; i++) {
+    nStdV3 += (nAcc3[i] > 0)? (nAcc3[i]-nAvg3) * (nAcc3[i]-nAvg3): 0;
+    nStdV4 += (nAcc4[i] > 0)? (nAcc4[i]-nAvg4) * (nAcc4[i]-nAvg4): 0;
+    nStdV5 += (nAcc5[i] > 0)? (nAcc5[i]-nAvg5) * (nAcc5[i]-nAvg5): 0;
+  }
+  nStdV3 = sqrt(nStdV3 / (double)nHyb3);
+  nStdV4 = sqrt(nStdV4 / (double)nHyb4);
+  nStdV5 = sqrt(nStdV5 / (double)nHyb5);
+
+  printf("Hybridization stats:\n");
+  printf("Calulated over all PO\n");
+  printf("Up to 3-cut: #PO %i/%i, #valid cuts mean %.3f, stdiv %.3f\n", nHyb3, n, nAvg3, nStd3);
+  printf("Up to 4-cut: #PO %i/%i, #valid cuts mean %.3f, stdiv %.3f\n", nHyb4, n, nAvg4, nStd4);
+  printf("Up to 5-cut: #PO %i/%i, #valid cuts mean %.3f, stdiv %.3f\n", nHyb5, n, nAvg5, nStd5);
+  printf("Calculated over po having hyb opportunities\n");
+  printf("Up to 3-cut: #PO %i/%i, #valid cuts mean %.3f, stdiv %.3f\n", nHyb3, n, nAvgV3, nStdV3);
+  printf("Up to 4-cut: #PO %i/%i, #valid cuts mean %.3f, stdiv %.3f\n", nHyb4, n, nAvgV4, nStdV4);
+  printf("Up to 5-cut: #PO %i/%i, #valid cuts mean %.3f, stdiv %.3f\n", nHyb5, n, nAvgV5, nStdV5);
+  /**
   printf("\n  - nCutsGood:");
   for(i=0; i<n; i++)
     printf(" %3i", p->nCutsGood[i]);
@@ -177,6 +263,7 @@ void Hyb_ManPrintStats ( Hyb_Man_t * p ) {
   for(i=0; i<n; i++)
     printf(" %3i", p->nCuts5[i]);
   printf("\n");
+  */
 }
 
 

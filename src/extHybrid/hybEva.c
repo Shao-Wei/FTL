@@ -31,7 +31,7 @@ void Hyb_PoCollectCand( Hyb_Man_t * p, Cut_Man_t * pManCut, int fVerbose ) {
         assert( pCut != NULL );
 
         if(fVerbose) { 
-            printf("Collecting candidate from PO %i..\n", n);
+            // printf("Collecting candidate from PO %i..\n", n);
             // printf( "Node %s:\n", Abc_ObjName(pNode) );
             // Cut_CutPrintList( pCut, 0 );
         }
