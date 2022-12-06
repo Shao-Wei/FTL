@@ -142,6 +142,7 @@ void Hyb_ManStop( Hyb_Man_t * p ) {
     sm_delete(p->pTable5); 
 
     Vec_PtrFree( p->vFaninsCur );
+    Extra_MmFixedStop( p->pMmNode );
 
     ABC_FREE(p->nCutsGood);
     ABC_FREE(p->nCutsBad); 
