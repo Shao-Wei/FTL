@@ -22,7 +22,7 @@ static int readHashTableFile(Hyb_Man_t * p, int fVerbose);
 Hyb_Man_t * Hyb_ManStart(Abc_Ntk_t * pNtk, int fVerbose) {
     int ret;
     Hyb_Man_t * p;
-    int i;
+    int i, nPo = Abc_NtkPoNum(pNtk);
 
     p = ABC_ALLOC( Hyb_Man_t, 1 );
     memset( p, 0, sizeof(Hyb_Man_t) );
@@ -36,15 +36,22 @@ Hyb_Man_t * Hyb_ManStart(Abc_Ntk_t * pNtk, int fVerbose) {
 
     p->nTravIds = 1;
     p->vFaninsCur = Vec_PtrAlloc( 50 );
+    // create the elementary nodes
+    p->pMmNode = Extra_MmFixedStart( sizeof(Hyb_Cand_t) );
+    p->pCand = ABC_ALLOC( Hyb_Cand_t*, nPo);
+    for(i=0; i<nPo; i++)
+      p->pCand[i] = NULL;
+    p->vCand_Greedy = Vec_PtrAlloc(nPo);
+    Vec_PtrFill(p->vCand_Greedy, nPo, NULL);
 
     // cut stats
-    p->nCutsGood = ABC_ALLOC(int, Abc_NtkPoNum(pNtk));
-    p->nCutsBad  = ABC_ALLOC(int, Abc_NtkPoNum(pNtk));
-    p->nCuts2    = ABC_ALLOC(int, Abc_NtkPoNum(pNtk));
-    p->nCuts3    = ABC_ALLOC(int, Abc_NtkPoNum(pNtk));
-    p->nCuts4    = ABC_ALLOC(int, Abc_NtkPoNum(pNtk));
-    p->nCuts5    = ABC_ALLOC(int, Abc_NtkPoNum(pNtk));
-    for(i=0; i<Abc_NtkPoNum(pNtk); i++) {
+    p->nCutsGood = ABC_ALLOC(int, nPo);
+    p->nCutsBad  = ABC_ALLOC(int, nPo);
+    p->nCuts2    = ABC_ALLOC(int, nPo);
+    p->nCuts3    = ABC_ALLOC(int, nPo);
+    p->nCuts4    = ABC_ALLOC(int, nPo);
+    p->nCuts5    = ABC_ALLOC(int, nPo);
+    for(i=0; i<nPo; i++) {
       p->nCutsGood[i] = 0;
       p->nCutsBad[i] = 0;
       p->nCuts2[i] = 0;
@@ -148,7 +155,7 @@ void Hyb_ManStop( Hyb_Man_t * p ) {
 
 /**Function*************************************************************
 
-  Synopsis    [Print stats.]
+  Synopsis    [Print cand stats.]
 
   Description []
                
@@ -157,7 +164,7 @@ void Hyb_ManStop( Hyb_Man_t * p ) {
   SeeAlso     []
 
 ***********************************************************************/
-void Hyb_ManPrintStats ( Hyb_Man_t * p ) {
+void Hyb_ManPrintCandStats ( Hyb_Man_t * p ) {
   int c, i, n = Abc_NtkPoNum(p->pNtk);
   int nAcc3[n], nAcc4[n], nAcc5[n]; // accumulated counts of threshold functions til n-cut
   int nHyb3, nHyb4, nHyb5; // number of po hybridized
@@ -265,6 +272,38 @@ void Hyb_ManPrintStats ( Hyb_Man_t * p ) {
     printf(" %3i", p->nCuts5[i]);
   printf("\n");
   */
+}
+
+/**Function*************************************************************
+
+  Synopsis    [Print greedily selected hybridize result.]
+
+  Description []
+               
+  SideEffects []
+
+  SeeAlso     []
+
+***********************************************************************/
+void Hyb_ManPrintGreedyResult( Hyb_Man_t * p) {
+  int i, n = Abc_NtkPoNum(p->pNtk);
+  int nHyb; // number of po hybridized
+  int nNodesSaved; // number of nodes replaced by FTL
+  Hyb_Cand_t * pCand;
+
+  nHyb = 0;
+  nNodesSaved = 0;
+  for(i=0; i<n; i++) {
+    pCand = (Hyb_Cand_t *)Vec_PtrGetEntry(p->vCand_Greedy, i);
+    if(pCand != NULL) {
+      nHyb++;
+      nNodesSaved += pCand->size;
+    }
+  }
+
+  printf("Greedy Select Results:\n");
+  printf("  - Number of PO hybridized: %i/%i\n", nHyb, n);
+  printf("  - Number of aig node replaced by FTL: %i\n", nNodesSaved);
 }
 
 

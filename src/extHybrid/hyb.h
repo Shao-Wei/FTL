@@ -8,6 +8,7 @@
 ABC_NAMESPACE_HEADER_START
 
 typedef struct Hyb_Man_t_ Hyb_Man_t;
+typedef struct Hyb_Cand_t_ Hyb_Cand_t;
 
 struct Hyb_Man_t_
 {
@@ -27,7 +28,10 @@ struct Hyb_Man_t_
     
     // resyn result
     Vec_Ptr_t *vFaninsCur; // the fanins array (temporary)
-
+    Extra_MmFixed_t *  pMmNode; // memory for nodes
+    Hyb_Cand_t ** pCand; // list of valid hybrid candidates in decending order in size
+    Vec_Ptr_t *vCand_Greedy; // the greedily selected cand set
+    
     // cut stats
     int *nCutsGood; // array of number of good cuts of each po
     int *nCutsBad; // array of number of bad cuts of each po
@@ -39,13 +43,26 @@ struct Hyb_Man_t_
     // runtime statistics
 };
 
+struct Hyb_Cand_t_
+{
+    Cut_Cut_t * pCut;
+    int size; // size of sub-circuit in aig
+    Hyb_Cand_t * pPrev; // prev in the list
+    Hyb_Cand_t * pNext; // next in the list
+};
+
 // hybMan.c
 extern Hyb_Man_t *      Hyb_ManStart(Abc_Ntk_t * pNtk, int fVerbose);
 extern void             Hyb_ManStop( Hyb_Man_t * p );
-extern void             Hyb_ManPrintStats ( Hyb_Man_t * p );
+extern void             Hyb_ManPrintCandStats ( Hyb_Man_t * p );
+extern void             Hyb_ManPrintGreedyResult( Hyb_Man_t * p );
+
+// hybLib.c
+extern Hyb_Cand_t *     Hyb_ManAddCand( Hyb_Man_t * p, int nPo, Cut_Cut_t * pCut, int size);
 
 // hybEva.c
 extern void             Hyb_PoCollectCand( Hyb_Man_t * p, int fVerbose );
+extern void             Hyb_CandGreedySelect( Hyb_Man_t * p, int fVerbose );
 
 
 ABC_NAMESPACE_HEADER_END
