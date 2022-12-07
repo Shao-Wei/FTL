@@ -28,10 +28,10 @@ static Cut_Man_t * ntkStartCutManForHybrid( Abc_Ntk_t * pNtk );
   SideEffects []
   SeeAlso     []
 ***********************************************************************/
-Abc_Ntk_t * FTL_Hybrid(Abc_Ntk_t * pNtk, int fVerbose) {
+Abc_Ntk_t * FTL_Hybrid(Abc_Ntk_t * pNtk, int fInputHybrid, int fVerbose) {
     Cut_Man_t * pManCut;
     Hyb_Man_t * pManHyb;
-    abctime clk, clkStart = Abc_Clock();
+    // abctime clk, clkStart = Abc_Clock();
     
     assert( Abc_NtkIsStrash(pNtk) );
     Abc_AigCleanup((Abc_Aig_t *)pNtk->pManFunc);
@@ -44,20 +44,30 @@ Abc_Ntk_t * FTL_Hybrid(Abc_Ntk_t * pNtk, int fVerbose) {
     pManCut = ntkStartCutManForHybrid( pNtk );
     pNtk->pManCut = pManCut;    
 
-    // Get candidates
-    Hyb_PoCollectCand( pManHyb, fVerbose);
-    Hyb_ManPrintCandStats( pManHyb );
-
-    // Select
-    Hyb_CandGreedySelect( pManHyb, fVerbose);
-    Hyb_ManPrintGreedyResult( pManHyb );
+    if(!fInputHybrid) {
+        // Get candidates
+        Hyb_PoCollectCand( pManHyb, fVerbose);
+        Hyb_ManPrintPoCandStats( pManHyb );
+        // Select
+        Hyb_PoCandGreedySelect( pManHyb, fVerbose);
+        Hyb_ManPrintPoGreedyResult( pManHyb );
+    }
+    else {
+        // Get candidates
+        Hyb_PiCollectCand( pManHyb, fVerbose);
+        Hyb_ManPrintPiCandStats( pManHyb );
+        // Select
+        Hyb_PiCandGreedySelect( pManHyb, fVerbose);
+        Hyb_ManPrintPiGreedyResult( pManHyb );
+    }
 
     // delete the mgr
     Cut_ManStop( pManCut );
     pNtk->pManCut = NULL;
     Hyb_ManStop( pManHyb );
 
-    Abc_NtkCheck(pNtk);
+    // LATER: reset fMarkA for each node, modified by GreedySelect
+    Abc_NtkCheck(pNtk); 
 
     return pNtk;
 }

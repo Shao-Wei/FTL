@@ -38,11 +38,14 @@ Hyb_Man_t * Hyb_ManStart(Abc_Ntk_t * pNtk, int fVerbose) {
     p->vFaninsCur = Vec_PtrAlloc( 50 );
     // create the elementary nodes
     p->pMmNode = Extra_MmFixedStart( sizeof(Hyb_Cand_t) );
-    p->pCand = ABC_ALLOC( Hyb_Cand_t*, nPo);
+    p->pPoCand = ABC_ALLOC( Hyb_Cand_t*, nPo);
     for(i=0; i<nPo; i++)
-      p->pCand[i] = NULL;
-    p->vCand_Greedy = Vec_PtrAlloc(nPo);
-    Vec_PtrFill(p->vCand_Greedy, nPo, NULL);
+      p->pPoCand[i] = NULL;
+    p->vPoCand_Greedy = Vec_PtrAlloc(nPo);
+    Vec_PtrFill(p->vPoCand_Greedy, nPo, NULL);
+    p->pPiCand = ABC_ALLOC( Hyb_Cand_t*, 1);
+    p->pPiCand[0] = NULL;
+    p->vPiCand_Greedy = Vec_PtrAlloc(0);
 
     // cut stats
     p->nCutsGood = ABC_ALLOC(int, nPo);
@@ -59,6 +62,13 @@ Hyb_Man_t * Hyb_ManStart(Abc_Ntk_t * pNtk, int fVerbose) {
       p->nCuts4[i] = 0;
       p->nCuts5[i] = 0;
     }
+
+    p->nPiCutsGood = 0;
+    p->nPiCutsBad  = 0;
+    p->nPiCuts2    = 0;
+    p->nPiCuts3    = 0;
+    p->nPiCuts4    = 0;
+    p->nPiCuts5    = 0;
 
     return p;
 }
@@ -143,6 +153,10 @@ void Hyb_ManStop( Hyb_Man_t * p ) {
 
     Vec_PtrFree( p->vFaninsCur );
     Extra_MmFixedStop( p->pMmNode );
+    ABC_FREE(p->pPiCand);
+    Vec_PtrFree( p->vPoCand_Greedy );
+    ABC_FREE(p->pPoCand);
+    Vec_PtrFree( p->vPiCand_Greedy );
 
     ABC_FREE(p->nCutsGood);
     ABC_FREE(p->nCutsBad); 
@@ -165,7 +179,7 @@ void Hyb_ManStop( Hyb_Man_t * p ) {
   SeeAlso     []
 
 ***********************************************************************/
-void Hyb_ManPrintCandStats ( Hyb_Man_t * p ) {
+void Hyb_ManPrintPoCandStats ( Hyb_Man_t * p ) {
   int c, i, n = Abc_NtkPoNum(p->pNtk);
   int nAcc3[n], nAcc4[n], nAcc5[n]; // accumulated counts of threshold functions til n-cut
   int nHyb3, nHyb4, nHyb5; // number of po hybridized
@@ -286,7 +300,7 @@ void Hyb_ManPrintCandStats ( Hyb_Man_t * p ) {
   SeeAlso     []
 
 ***********************************************************************/
-void Hyb_ManPrintGreedyResult( Hyb_Man_t * p) {
+void Hyb_ManPrintPoGreedyResult( Hyb_Man_t * p) {
   int i, n = Abc_NtkPoNum(p->pNtk);
   int nHyb; // number of po hybridized
   int nNodesSaved; // number of nodes replaced by FTL
@@ -295,7 +309,7 @@ void Hyb_ManPrintGreedyResult( Hyb_Man_t * p) {
   nHyb = 0;
   nNodesSaved = 0;
   for(i=0; i<n; i++) {
-    pCand = (Hyb_Cand_t *)Vec_PtrGetEntry(p->vCand_Greedy, i);
+    pCand = (Hyb_Cand_t *)Vec_PtrGetEntry(p->vPoCand_Greedy, i);
     if(pCand != NULL) {
       nHyb++;
       nNodesSaved += pCand->size;
@@ -307,6 +321,34 @@ void Hyb_ManPrintGreedyResult( Hyb_Man_t * p) {
   printf("  - Number of aig node replaced by FTL: %i\n", nNodesSaved);
 }
 
+/**Function*************************************************************
 
+  Synopsis    [Print cand stats.]
+
+  Description []
+               
+  SideEffects []
+
+  SeeAlso     []
+
+***********************************************************************/
+void Hyb_ManPrintPiCandStats ( Hyb_Man_t * p ) {
+
+}
+
+/**Function*************************************************************
+
+  Synopsis    [Print greedily selected hybridize result.]
+
+  Description []
+               
+  SideEffects []
+
+  SeeAlso     []
+
+***********************************************************************/
+void Hyb_ManPrintPiGreedyResult( Hyb_Man_t * p) {
+  
+}
 
 ABC_NAMESPACE_IMPL_END

@@ -11,7 +11,7 @@ static unsigned getUMask(int nVar);
 static int test_threshold(Hyb_Man_t * p, int nVar, unsigned uTruth);
 
 /**Function*************************************************************
-  Synopsis    [ Collect all hybridization candidates of a primary output ]
+  Synopsis    [ Collect all output hybridization candidates. ]
   Description []               
   SideEffects []
   SeeAlso     []
@@ -81,7 +81,7 @@ void Hyb_PoCollectCand( Hyb_Man_t * p, int fVerbose ) {
                     Abc_ObjRegular(pFanin)->vFanouts.nSize--;
 
                 // Add to cand
-                pCand = Hyb_ManAddCand(p, n, pCut, nNodesSaved);
+                pCand = Hyb_ManAddPoCand(p, n, pCut, nNodesSaved);
                 if(pCand == NULL) {
                     printf("Error: failed to add to candidate list\n");
                 }
@@ -146,12 +146,12 @@ int test_threshold(Hyb_Man_t * p, int nVar, unsigned uTruth) {
 }
 
 /**Function*************************************************************
-  Synopsis    [ Greedy select set of hybridization. ]
+  Synopsis    [ Greedy select set of output hybridization. ]
   Description []               
   SideEffects []
   SeeAlso     []
 ***********************************************************************/
-void Hyb_CandGreedySelect( Hyb_Man_t * p, int fVerbose ) {
+void Hyb_PoCandGreedySelect( Hyb_Man_t * p, int fVerbose ) {
     Abc_Obj_t * pPo, *pNode, * pFanin, *pObj;
     Hyb_Cand_t * pHead;
     Cut_Cut_t * pCut;
@@ -163,8 +163,8 @@ void Hyb_CandGreedySelect( Hyb_Man_t * p, int fVerbose ) {
         pObj->fMarkA = 0;
 
     // clear selected set
-    Vec_PtrClear( p->vCand_Greedy );
-    Vec_PtrFill( p->vCand_Greedy, Abc_NtkPoNum(p->pNtk), NULL);
+    Vec_PtrClear( p->vPoCand_Greedy );
+    Vec_PtrFill( p->vPoCand_Greedy, Abc_NtkPoNum(p->pNtk), NULL);
 
     if(fVerbose) {
         int sizeMax, nCand;
@@ -172,7 +172,7 @@ void Hyb_CandGreedySelect( Hyb_Man_t * p, int fVerbose ) {
         Abc_NtkForEachPo(p->pNtk, pPo, n) {
             pNode = Abc_ObjFanin0(pPo);
             sizeMax = 0; nCand = 0;
-            for(pHead = p->pCand[n]; pHead; pHead = pHead->pNext) {
+            for(pHead = p->pPoCand[n]; pHead; pHead = pHead->pNext) {
                 if(sizeMax == 0)
                     sizeMax = pHead->size;
                 nCand++;
@@ -185,7 +185,7 @@ void Hyb_CandGreedySelect( Hyb_Man_t * p, int fVerbose ) {
     // select for each node
     Abc_NtkForEachPo(p->pNtk, pPo, n) {
         pNode = Abc_ObjFanin0(pPo);
-        for(pHead = p->pCand[n]; pHead; pHead = pHead->pNext) {
+        for(pHead = p->pPoCand[n]; pHead; pHead = pHead->pNext) {
             pCut = pHead->pCut;
             // get the fanin
             Vec_PtrClear( p->vFaninsCur );
@@ -228,8 +228,29 @@ void Hyb_CandGreedySelect( Hyb_Man_t * p, int fVerbose ) {
                     pObj->fMarkA = 0;
             }
             // add cand to set
-            Vec_PtrWriteEntry( p->vCand_Greedy, n, pHead);
+            Vec_PtrWriteEntry( p->vPoCand_Greedy, n, pHead);
         }
     }
 }
+
+/**Function*************************************************************
+  Synopsis    [ Collect all input hybridization candidates. ]
+  Description []               
+  SideEffects []
+  SeeAlso     []
+***********************************************************************/
+void Hyb_PiCollectCand( Hyb_Man_t * p, int fVerbose ) {
+
+}
+
+/**Function*************************************************************
+  Synopsis    [ Greedy select set of input hybridization. ]
+  Description []               
+  SideEffects []
+  SeeAlso     []
+***********************************************************************/
+void Hyb_PiCandGreedySelect( Hyb_Man_t * p, int fVerbose ) {
+
+}
+
 ABC_NAMESPACE_IMPL_END

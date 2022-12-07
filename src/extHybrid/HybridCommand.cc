@@ -16,14 +16,18 @@ static int FTL_Hybrid_Command( Abc_Frame_t_ * pAbc, int argc, char ** argv )
 {
     int c            = 0;
     int fVerbose     = 0;
+    int fInputHybrid = 0;
 
     Abc_Ntk_t *pNtk, *pNtkRes;
         
     Extra_UtilGetoptReset();
-    while ( ( c = Extra_UtilGetopt( argc, argv, "vh" ) ) != EOF )
+    while ( ( c = Extra_UtilGetopt( argc, argv, "ivh" ) ) != EOF )
     {
         switch ( c )
         {            
+            case 'i':
+                fInputHybrid ^= 1;
+                break;
             case 'v':
                 fVerbose ^= 1;
                 break;
@@ -45,17 +49,18 @@ static int FTL_Hybrid_Command( Abc_Frame_t_ * pAbc, int argc, char ** argv )
         pNtk = pNtkTemp;
     }
 
-    // main func
-    pNtkRes = FTL_Hybrid(pNtk, fVerbose);
+    // main func - support consecutive IH/ OH later
+    pNtkRes = FTL_Hybrid(pNtk, fInputHybrid, fVerbose);
 
     // return
-    // BUG - error in Abc_NtkDelete(), double free? unresolved marks?
+    // LATER - error in Abc_NtkDelete(), double free? unresolved marks?
     // Abc_FrameReplaceCurrentNetwork(pAbc, pNtkRes);
     return 0;
     
 usage:
     Abc_Print( -2, "usage: ftl_hybrid\n" );
     Abc_Print( -2, "\t              Hybridize network by replacing subcircuit with FTL blocks\n" );
+    Abc_Print( -2, "\t              : toggle input (output) hybridization [default = %s]\n", (fInputHybrid)? "input": "output");
     Abc_Print( -2, "\t-v            : verbosity [default = %d]\n", fVerbose );
     Abc_Print( -2, "\t-h            : print the command usage\n" );
     return 1;   
