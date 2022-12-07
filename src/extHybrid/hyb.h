@@ -47,6 +47,9 @@ struct Hyb_Man_t_
     int nPiCutsGood, nPiCutsBad, nPiCuts2, nPiCuts3, nPiCuts4, nPiCuts5;
     
     // runtime statistics
+    abctime timeCollectCand;
+    abctime timeGreedySelect;
+    abctime timeTotal;
 };
 
 struct Hyb_Cand_t_
@@ -60,10 +63,12 @@ struct Hyb_Cand_t_
 // hybMan.c
 extern Hyb_Man_t *      Hyb_ManStart(Abc_Ntk_t * pNtk, int fVerbose);
 extern void             Hyb_ManStop( Hyb_Man_t * p );
+
 extern void             Hyb_ManPrintPoCandStats ( Hyb_Man_t * p );
 extern void             Hyb_ManPrintPoGreedyResult( Hyb_Man_t * p );
 extern void             Hyb_ManPrintPiCandStats ( Hyb_Man_t * p );
 extern void             Hyb_ManPrintPiGreedyResult( Hyb_Man_t * p );
+extern void             Hyb_ManPrintTimeStats( Hyb_Man_t * p );
 
 // hybLib.c
 extern Hyb_Cand_t *     Hyb_ManAddPoCand( Hyb_Man_t * p, int nPo, Cut_Cut_t * pCut, int size);

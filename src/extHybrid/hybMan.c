@@ -377,4 +377,22 @@ void Hyb_ManPrintPiGreedyResult( Hyb_Man_t * p) {
   printf("  - Number of aig node replaced by FTL: %i\n", nNodesSaved);
 }
 
+/**Function*************************************************************
+
+  Synopsis    [Print time stats.]
+
+  Description []
+               
+  SideEffects []
+
+  SeeAlso     []
+
+***********************************************************************/
+void Hyb_ManPrintTimeStats( Hyb_Man_t * p ) {
+  printf("Time Stats:\n");
+  ABC_PRT("  Collect candidates ", p->timeCollectCand);
+  ABC_PRT("  Greedy select      ", p->timeGreedySelect);
+  ABC_PRT("  TOTAL              ", p->timeTotal);
+}
+
 ABC_NAMESPACE_IMPL_END
