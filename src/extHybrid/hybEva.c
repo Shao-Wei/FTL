@@ -166,6 +166,22 @@ void Hyb_CandGreedySelect( Hyb_Man_t * p, int fVerbose ) {
     Vec_PtrClear( p->vCand_Greedy );
     Vec_PtrFill( p->vCand_Greedy, Abc_NtkPoNum(p->pNtk), NULL);
 
+    if(fVerbose) {
+        int sizeMax, nCand;
+        printf("Greedy select - cand list size stats:\n");
+        Abc_NtkForEachPo(p->pNtk, pPo, n) {
+            pNode = Abc_ObjFanin0(pPo);
+            sizeMax = 0; nCand = 0;
+            for(pHead = p->pCand[n]; pHead; pHead = pHead->pNext) {
+                if(sizeMax == 0)
+                    sizeMax = pHead->size;
+                nCand++;
+            }
+            if(nCand > 0)
+                printf("  - PO %i: #cand %i, sizeMax %i\n", n, nCand, sizeMax);
+        }
+    }
+
     // select for each node
     Abc_NtkForEachPo(p->pNtk, pPo, n) {
         pNode = Abc_ObjFanin0(pPo);

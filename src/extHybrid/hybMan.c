@@ -244,14 +244,14 @@ void Hyb_ManPrintCandStats ( Hyb_Man_t * p ) {
   nStdV5 = sqrt(nStdV5 / (double)nHyb5);
 
   printf("Hybridization stats:\n");
-  printf("Calulated over all PO\n");
-  printf("Up to 3-cut: #PO %i/%i, #valid cuts mean %.3f, stdiv %.3f\n", nHyb3, n, nAvg3, nStd3);
-  printf("Up to 4-cut: #PO %i/%i, #valid cuts mean %.3f, stdiv %.3f\n", nHyb4, n, nAvg4, nStd4);
-  printf("Up to 5-cut: #PO %i/%i, #valid cuts mean %.3f, stdiv %.3f\n", nHyb5, n, nAvg5, nStd5);
+  // printf("Calulated over all PO\n");
+  // printf("  Up to 3-cut: #PO %i/%i, #valid cuts mean %.3f, stdiv %.3f\n", nHyb3, n, nAvg3, nStd3);
+  // printf("  Up to 4-cut: #PO %i/%i, #valid cuts mean %.3f, stdiv %.3f\n", nHyb4, n, nAvg4, nStd4);
+  // printf("  Up to 5-cut: #PO %i/%i, #valid cuts mean %.3f, stdiv %.3f\n", nHyb5, n, nAvg5, nStd5);
   printf("Calculated over po having hyb opportunities\n");
-  printf("Up to 3-cut: #PO %i/%i, #valid cuts mean %.3f, stdiv %.3f\n", nHyb3, n, nAvgV3, nStdV3);
-  printf("Up to 4-cut: #PO %i/%i, #valid cuts mean %.3f, stdiv %.3f\n", nHyb4, n, nAvgV4, nStdV4);
-  printf("Up to 5-cut: #PO %i/%i, #valid cuts mean %.3f, stdiv %.3f\n", nHyb5, n, nAvgV5, nStdV5);
+  printf("  Up to 3-cut: #PO %i/%i, #valid cuts mean %.3f, stdiv %.3f\n", nHyb3, n, nAvgV3, nStdV3);
+  printf("  Up to 4-cut: #PO %i/%i, #valid cuts mean %.3f, stdiv %.3f\n", nHyb4, n, nAvgV4, nStdV4);
+  printf("  Up to 5-cut: #PO %i/%i, #valid cuts mean %.3f, stdiv %.3f\n", nHyb5, n, nAvgV5, nStdV5);
   /**
   printf("\n  - nCutsGood:");
   for(i=0; i<n; i++)

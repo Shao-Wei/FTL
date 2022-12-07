@@ -46,13 +46,11 @@ Abc_Ntk_t * FTL_Hybrid(Abc_Ntk_t * pNtk, int fVerbose) {
 
     // Get candidates
     Hyb_PoCollectCand( pManHyb, fVerbose);
-    if(fVerbose)
-        Hyb_ManPrintCandStats( pManHyb );
+    Hyb_ManPrintCandStats( pManHyb );
 
     // Select
     Hyb_CandGreedySelect( pManHyb, fVerbose);
-    if(fVerbose)
-        Hyb_ManPrintGreedyResult( pManHyb );
+    Hyb_ManPrintGreedyResult( pManHyb );
 
     // delete the mgr
     Cut_ManStop( pManCut );
