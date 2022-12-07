@@ -75,7 +75,7 @@ Hyb_Cand_t * Hyb_ManAddPiCand( Hyb_Man_t * p, Cut_Cut_t * pCut, int size) {
     pNew->pNext = NULL;
 
     // add to linked list in decending order
-    if(p->pPiCand == NULL) {
+    if(p->pPiCand[0] == NULL) {
         p->pPiCand[0] = pNew; // add as head
     }
     else {

@@ -240,7 +240,86 @@ void Hyb_PoCandGreedySelect( Hyb_Man_t * p, int fVerbose ) {
   SeeAlso     []
 ***********************************************************************/
 void Hyb_PiCollectCand( Hyb_Man_t * p, int fVerbose ) {
+    Cut_Man_t * pManCut;
+    Cut_Cut_t * pCut;
+    Abc_Obj_t * pNode, *pFanin;
+    Hyb_Cand_t * pCand;
+    unsigned uTruth;
+    int n, i;
+    int nPiInCut;
+    int nNodesSaved;
 
+    pManCut = p->pNtk->pManCut;
+    // LATER - need not check all nodes?
+    Abc_NtkForEachNode(p->pNtk, pNode, n) {
+        pCut = (Cut_Cut_t *)Abc_NodeGetCutsRecursive( pManCut, pNode, 0, 0 );
+        // LATER - there may be more than one valid cut?
+        // get largest cut
+        for( pCut = pCut->pNext; pCut; pCut = pCut->pNext ){
+            if(pCut->pNext == NULL)
+                break;
+        }
+
+        // consider only cuts w/ less than 5 inputs
+        if( pCut->nLeaves < 2 || pCut->nLeaves > 5) 
+            continue;
+        // get signature
+        uTruth = getUMask(pCut->nLeaves) & *Cut_CutReadTruth(pCut);
+
+        // get the fanin
+        Vec_PtrClear( p->vFaninsCur );
+        Vec_PtrFill( p->vFaninsCur, (int)pCut->nLeaves, 0 );
+        for ( i = 0; i < (int)pCut->nLeaves; i++ )
+        {
+            pFanin = Abc_NtkObj( pNode->pNtk, pCut->pLeaves[i] );
+            if ( pFanin == NULL )
+                break;
+            Vec_PtrWriteEntry( p->vFaninsCur, i, pFanin );
+        }
+        if ( i != (int)pCut->nLeaves )
+            continue; // bad but
+        // check if vFaninsCur are all PIs
+        nPiInCut = 0;
+        for(i=0; i<(int)pCut->nLeaves; i++) {
+            if(Abc_ObjIsPi((Abc_Obj_t*)Vec_PtrGetEntry(p->vFaninsCur, i)))
+                nPiInCut++;
+        }
+        if(nPiInCut == (int)pCut->nLeaves)
+            p->nPiCutsGood++;
+        else {
+            p->nPiCutsBad++;
+            continue;
+        }
+
+        // test threshold
+        if(test_threshold(p, pCut->nLeaves, uTruth)) {
+            // Get sub-circuit size
+            // - mark the fanin boundary 
+            Vec_PtrForEachEntry( Abc_Obj_t *, p->vFaninsCur, pFanin, i )
+                Abc_ObjRegular(pFanin)->vFanouts.nSize++;
+            // - label MFFC with current ID
+            Abc_NtkIncrementTravId( pNode->pNtk );
+            nNodesSaved = Abc_NodeMffcLabelAig( pNode );
+            // - unmark the fanin boundary
+            Vec_PtrForEachEntry( Abc_Obj_t *, p->vFaninsCur, pFanin, i )
+                Abc_ObjRegular(pFanin)->vFanouts.nSize--;
+
+            // Add to cand
+            pCand = Hyb_ManAddPiCand(p, pCut, nNodesSaved);
+            if(pCand == NULL) {
+                printf("Error: failed to add to candidate list\n");
+            }
+            // Add to stats
+            if(pCut->nLeaves == 2)
+                p->nPiCuts2++;
+            else if(pCut->nLeaves == 3)
+                p->nPiCuts3++;
+            else if(pCut->nLeaves == 4)
+                p->nPiCuts4++;
+            else { p->nPiCuts5++; }
+        }
+            
+    }
 }
 
 /**Function*************************************************************
@@ -250,7 +329,54 @@ void Hyb_PiCollectCand( Hyb_Man_t * p, int fVerbose ) {
   SeeAlso     []
 ***********************************************************************/
 void Hyb_PiCandGreedySelect( Hyb_Man_t * p, int fVerbose ) {
+    int i, k, n = Abc_NtkPiNum(p->pNtk), idx;
+    int fIdPi[n];
+    int fMarkPi[n];
+    Hyb_Cand_t * pHead;
+    Cut_Cut_t * pCut;
+    int nFanin, objId; 
 
+    for(i=0; i<n; i++) {
+        fIdPi[i] = Abc_ObjId(Abc_NtkPi(p->pNtk, i));
+        fMarkPi[i] = 0;
+    }
+    // go through all cuts
+    for( pHead = p->pPiCand[0]; pHead; pHead = pHead->pNext) {
+        pCut = pHead->pCut;
+        nFanin = 0;
+        for(i=0; i<(int)pCut->nLeaves; i++) {
+            objId = Abc_ObjId(Abc_NtkObj( p->pNtk, pCut->pLeaves[i] ));
+            { // map id to idx
+                idx = -1;
+                for(k=0; k<n; k++) {
+                    if(objId == fIdPi[k]) {
+                        idx = k;
+                        break;
+                    }
+                }
+            }
+            assert( idx >= 0 );
+            if(fMarkPi[idx] == 0)
+                nFanin++;
+        }
+        if(nFanin == (int)pCut->nLeaves) {
+            Vec_PtrPush(p->vPiCand_Greedy, pHead);
+            for(i=0; i<(int)pCut->nLeaves; i++) {
+                objId = Abc_ObjId(Abc_NtkObj( p->pNtk, pCut->pLeaves[i] ));
+                { // map id to idx
+                    idx = -1;
+                    for(k=0; k<n; k++) {
+                        if(objId == fIdPi[k]) {
+                            idx = k;
+                            break;
+                        }
+                    }
+                }
+                assert( idx >= 0 );
+                fMarkPi[idx] = 1;
+            }
+        }
+    }
 }
 
 ABC_NAMESPACE_IMPL_END

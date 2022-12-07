@@ -333,7 +333,17 @@ void Hyb_ManPrintPoGreedyResult( Hyb_Man_t * p) {
 
 ***********************************************************************/
 void Hyb_ManPrintPiCandStats ( Hyb_Man_t * p ) {
+  int nAcc3, nAcc4, nAcc5; // accumulated counts of threshold functions til n-cut
+  // int nHyb; // number of pi hybridized
 
+  nAcc3 = p->nPiCuts2 + p->nPiCuts3;
+  nAcc4 = p->nPiCuts2 + p->nPiCuts3 + p->nPiCuts4;
+  nAcc5 = p->nPiCuts2 + p->nPiCuts3 + p->nPiCuts4 + p->nPiCuts5;
+
+  printf("Hybridization stats:\n");
+  printf("  Up to 3-cut: #valid cuts %i\n", nAcc3);
+  printf("  Up to 4-cut: #valid cuts %i\n", nAcc4);
+  printf("  Up to 5-cut: #valid cuts %i\n", nAcc5);
 }
 
 /**Function*************************************************************
@@ -348,7 +358,23 @@ void Hyb_ManPrintPiCandStats ( Hyb_Man_t * p ) {
 
 ***********************************************************************/
 void Hyb_ManPrintPiGreedyResult( Hyb_Man_t * p) {
-  
+  int i, n = Abc_NtkPiNum(p->pNtk);
+  int nHyb; // number of pi hybridized
+  int nBlock; // number of FTL blocks inserted
+  int nNodesSaved; // number of nodes replaced by FTL
+  Hyb_Cand_t * pCand;
+
+  nHyb = nBlock = nNodesSaved = 0;
+  Vec_PtrForEachEntry(Hyb_Cand_t *, p->vPiCand_Greedy, pCand, i) {
+    nHyb += pCand->pCut->nLeaves;
+    nBlock++;
+    nNodesSaved += pCand->size;
+  }
+
+  printf("Greedy Select Results:\n");
+  printf("  - Number of PI hybridized: %i/%i\n", nHyb, n);
+  printf("  - Number of FTL blocks inserted: %i\n", nBlock);
+  printf("  - Number of aig node replaced by FTL: %i\n", nNodesSaved);
 }
 
 ABC_NAMESPACE_IMPL_END
