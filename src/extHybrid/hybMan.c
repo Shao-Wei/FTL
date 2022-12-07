@@ -257,7 +257,7 @@ void Hyb_ManPrintPoCandStats ( Hyb_Man_t * p ) {
   nStdV4 = sqrt(nStdV4 / (double)nHyb4);
   nStdV5 = sqrt(nStdV5 / (double)nHyb5);
 
-  printf("Hybridization stats:\n");
+  printf("Hybridization cand stats:\n");
   // printf("Calulated over all PO\n");
   // printf("  Up to 3-cut: #PO %i/%i, #valid cuts mean %.3f, stdiv %.3f\n", nHyb3, n, nAvg3, nStd3);
   // printf("  Up to 4-cut: #PO %i/%i, #valid cuts mean %.3f, stdiv %.3f\n", nHyb4, n, nAvg4, nStd4);
@@ -333,17 +333,52 @@ void Hyb_ManPrintPoGreedyResult( Hyb_Man_t * p) {
 
 ***********************************************************************/
 void Hyb_ManPrintPiCandStats ( Hyb_Man_t * p ) {
-  int nAcc3, nAcc4, nAcc5; // accumulated counts of threshold functions til n-cut
-  // int nHyb; // number of pi hybridized
+  int nAcc2, nAcc3, nAcc4, nAcc5; // accumulated counts of threshold functions til n-cut
+  int nHyb; // number of pi hybridized
 
+  nAcc2 = p->nPiCuts2;
   nAcc3 = p->nPiCuts2 + p->nPiCuts3;
   nAcc4 = p->nPiCuts2 + p->nPiCuts3 + p->nPiCuts4;
   nAcc5 = p->nPiCuts2 + p->nPiCuts3 + p->nPiCuts4 + p->nPiCuts5;
 
-  printf("Hybridization stats:\n");
+  Hyb_Cand_t * pHead;
+  Cut_Cut_t * pCut;
+  int i, k, n = Abc_NtkPiNum(p->pNtk);
+  int idx, objId;
+  int fIdPi[n], fMarkPi[n];
+  for(i=0; i<n; i++) {
+    fIdPi[i] = Abc_ObjId(Abc_NtkPi(p->pNtk, i));
+    fMarkPi[i] = 0;
+  }
+  for( pHead = p->pPiCand[0]; pHead; pHead = pHead->pNext) {
+    pCut = pHead->pCut;
+    for(i=0; i<(int)pCut->nLeaves; i++) {
+      objId = Abc_ObjId(Abc_NtkObj( p->pNtk, pCut->pLeaves[i] ));
+      { // map id to idx
+          idx = -1;
+          for(k=0; k<n; k++) {
+              if(objId == fIdPi[k]) {
+                  idx = k;
+                  break;
+              }
+          }
+      }
+      assert( idx >= 0 );
+      fMarkPi[idx] = 1;
+    }
+  }
+  nHyb = 0;
+  for(i=0; i<n; i++) {
+    if(fMarkPi[i])
+      nHyb++;
+  }
+
+  printf("Hybridization cand stats:\n");
+  printf("  Up to 2-cut: #valid cuts %i\n", nAcc2);
   printf("  Up to 3-cut: #valid cuts %i\n", nAcc3);
   printf("  Up to 4-cut: #valid cuts %i\n", nAcc4);
   printf("  Up to 5-cut: #valid cuts %i\n", nAcc5);
+  printf("  Number of Pi that exist a valid cut: %i/%i\n", nHyb, Abc_NtkPiNum(p->pNtk));
 }
 
 /**Function*************************************************************
