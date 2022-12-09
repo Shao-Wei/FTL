@@ -58,9 +58,9 @@ static int FTL_Hybrid_Command( Abc_Frame_t_ * pAbc, int argc, char ** argv )
     return 0;
     
 usage:
-    Abc_Print( -2, "usage: ftl_hybrid\n" );
+    Abc_Print( -2, "usage: ftl_hybrid [-ivh]\n" );
     Abc_Print( -2, "\t              Hybridize network by replacing subcircuit with FTL blocks\n" );
-    Abc_Print( -2, "\t              : toggle input (output) hybridization [default = %s]\n", (fInputHybrid)? "input": "output");
+    Abc_Print( -2, "\t-i            : toggle input (output) hybridization [default = %s]\n", (fInputHybrid)? "input": "output");
     Abc_Print( -2, "\t-v            : verbosity [default = %d]\n", fVerbose );
     Abc_Print( -2, "\t-h            : print the command usage\n" );
     return 1;   
